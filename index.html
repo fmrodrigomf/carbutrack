@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CarbuTrack">
+<meta name="theme-color" content="#0F1117">
+<title>CarbuTrack</title>
+<script>
+// Generate PWA icon as canvas and inject as apple-touch-icon
+(function(){
+  try {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 512;
+    const ctx = c.getContext('2d');
+    // Background with rounded corners (iOS clips automatically but we round anyway)
+    const r = 100;
+    ctx.beginPath();
+    ctx.moveTo(r,0); ctx.lineTo(512-r,0); ctx.quadraticCurveTo(512,0,512,r);
+    ctx.lineTo(512,512-r); ctx.quadraticCurveTo(512,512,512-r,512);
+    ctx.lineTo(r,512); ctx.quadraticCurveTo(0,512,0,512-r);
+    ctx.lineTo(0,r); ctx.quadraticCurveTo(0,0,r,0); ctx.closePath();
+    // Dark gradient background
+    const bg = ctx.createLinearGradient(0,0,512,512);
+    bg.addColorStop(0,'#13162A'); bg.addColorStop(1,'#0F1117');
+    ctx.fillStyle = bg; ctx.fill();
+    // Amber glow circle behind icon
+    const glow = ctx.createRadialGradient(256,256,40,256,256,220);
+    glow.addColorStop(0,'rgba(245,158,11,0.18)'); glow.addColorStop(1,'rgba(245,158,11,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(256,256,220,0,Math.PI*2); ctx.fill();
+    // Draw fuel pump emoji via text
+    ctx.font = '260px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⛽', 256, 265);
+    // Bottom text "CarbuTrack"
+    ctx.font = 'bold 52px -apple-system,sans-serif';
+    ctx.fillStyle = '#F59E0B';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('CarbuTrack', 256, 470);
+    // Amber border ring
+    ctx.beginPath(); ctx.arc(256,256,248,0,Math.PI*2);
+    ctx.strokeStyle='rgba(245,158,11,0.25)'; ctx.lineWidth=6; ctx.stroke();
+    // Inject as link tag
+    const link = document.createElement('link');
+    link.rel = 'apple-touch-icon';
+    link.href = c.toDataURL('image/png');
+    document.head.appendChild(link);
+    // Also set favicon
+    const fav = document.createElement('link');
+    fav.rel = 'icon'; fav.type = 'image/png';
+    fav.href = c.toDataURL('image/png');
+    document.head.appendChild(fav);
+  } catch(e){}
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<style>
+:root{
+  --bg:#0F1117;--surface:#1A1D2E;--surface2:#232640;
+  --amber:#F59E0B;--amber-dim:#92600A44;
+  --blue:#3B82F6;--green:#10B981;--red:#EF4444;--purple:#A855F7;--teal:#14B8A6;
+  --text:#F1F5F9;--text-dim:#94A3B8;--text-muted:#475569;
+  --border:#2D3250;--radius:14px;--sidebar-w:230px;
+  --safe-top:env(safe-area-inset-top,44px);--safe-bot:env(safe-area-inset-bottom,20px);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body,#root{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+body{overflow:hidden;}
+.app{display:flex;height:100vh;height:100dvh;}
+
+/* SIDEBAR */
+.sidebar{display:none;width:var(--sidebar-w);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);flex-direction:column;padding:32px 0 24px;}
+.sidebar-logo{padding:0 20px 24px;}
+.sidebar-logo-title{font-size:22px;font-weight:800;letter-spacing:-.5px;color:var(--amber);}
+.sidebar-logo-sub{font-size:12px;color:var(--text-muted);margin-top:2px;}
+.sidebar-nav{flex:1;display:flex;flex-direction:column;gap:4px;padding:0 12px;overflow-y:auto;}
+.sidebar-btn{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;border:none;background:none;color:var(--text-dim);font-size:14px;font-weight:600;cursor:pointer;text-align:left;transition:background .15s,color .15s;font-family:inherit;width:100%;}
+.sidebar-btn:hover{background:var(--surface2);color:var(--text);}
+.sidebar-btn.active{background:var(--amber-dim);color:var(--amber);}
+.s-icon{font-size:18px;width:24px;text-align:center;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.sidebar-footer{padding:16px 20px 0;border-top:1px solid var(--border);margin:0 12px;}
+.sidebar-footer-text{font-size:11px;color:var(--text-muted);line-height:1.5;}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.status-bar{height:var(--safe-top);background:var(--bg);flex-shrink:0;}
+.content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
+@media(max-width:767px){.content{padding-bottom:calc(72px + var(--safe-bot));}}
+@media(min-width:768px){.status-bar{display:none;}.sidebar{display:flex;}.content{padding-bottom:28px;}}
+
+/* TAB BAR */
+.tab-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(26,29,46,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);padding-bottom:var(--safe-bot);z-index:100;}
+.tab-bar-inner{display:flex;}
+.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 5px;background:none;border:none;color:var(--text-muted);font-size:9px;font-weight:500;cursor:pointer;transition:color .2s;}
+.tab-btn.active{color:var(--amber);}
+.tab-icon{font-size:19px;line-height:1;}
+@media(min-width:768px){.tab-bar{display:none;}}
+
+/* PAGE */
+.page-wrap{max-width:900px;margin:0 auto;}
+.page-header{padding:20px 20px 8px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.page-title{font-size:26px;font-weight:700;letter-spacing:-.5px;}
+.page-subtitle{font-size:13px;color:var(--text-dim);margin-top:2px;}
+@media(min-width:768px){.page-header{padding:28px 28px 12px;}.page-title{font-size:28px;}}
+@media(min-width:768px){.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;}.dash-full{grid-column:1/-1;}}
+
+/* VEHICLE BAR */
+.vehicle-toggle-wrap{padding:0 20px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.vehicle-toggle{display:flex;background:var(--surface);border-radius:12px;padding:4px;gap:4px;min-width:max-content;}
+.vehicle-btn{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:9px;border:none;background:none;color:var(--text-dim);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;font-family:inherit;}
+.vehicle-btn.active{background:var(--amber);color:#000;}
+.vehicle-btn svg{flex-shrink:0;}
+.veh-add-btn{padding:8px 12px;border-radius:9px;border:none;background:none;color:var(--text-muted);font-size:18px;cursor:pointer;transition:all .2s;flex-shrink:0;}
+.veh-add-btn:hover{color:var(--amber);}
+
+/* CARDS */
+.card{background:var(--surface);border-radius:var(--radius);padding:16px;margin:0 20px 12px;border:1px solid var(--border);}
+.card-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 20px 12px;}
+@media(min-width:900px){.stats-grid{grid-template-columns:repeat(4,1fr);}}
+.stat-card{background:var(--surface);border-radius:var(--radius);padding:14px 12px;border:1px solid var(--border);}
+.stat-value{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
+.stat-label{font-size:11px;color:var(--text-dim);margin-top:3px;}
+.stat-accent{color:var(--amber);}
+
+/* GAUGES & BADGES */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:4px 0 8px;}
+.gauge-svg{width:180px;height:100px;}
+.fuel-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.fuel-sp95{background:rgba(59,130,246,.15);color:#60A5FA;}
+.fuel-sp98{background:rgba(245,158,11,.15);color:var(--amber);}
+
+/* HISTORY ITEMS */
+.fill-item{background:var(--surface);border-radius:var(--radius);padding:13px 16px;margin:0 20px 10px;border:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;}
+.fill-icon{width:38px;height:38px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.fill-main{flex:1;min-width:0;}
+.fill-date{font-size:11px;color:var(--text-dim);}
+.fill-title{font-size:14px;font-weight:600;margin:2px 0 3px;}
+.fill-meta{font-size:12px;color:var(--text-dim);}
+.fill-cost{text-align:right;flex-shrink:0;}
+.fill-cost-val{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--amber);}
+.fill-lkm{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.actions-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+
+/* FORMS */
+.form-section{margin:0 20px 16px;}
+.form-label{font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;display:block;}
+.form-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:16px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .2s;font-family:inherit;}
+.form-input:focus{border-color:var(--amber);}
+textarea.form-input{resize:vertical;min-height:80px;font-size:14px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.fuel-type-toggle{display:flex;background:var(--surface);border-radius:10px;padding:4px;}
+.fuel-type-btn{flex:1;padding:10px;border-radius:7px;border:none;background:none;color:var(--text-dim);font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;}
+.fuel-type-btn.sp95.active{background:#1E3A5F;color:#60A5FA;}
+.fuel-type-btn.sp98.active{background:#92600A44;color:var(--amber);}
+
+/* BUTTONS */
+.btn-primary{width:100%;padding:14px;background:var(--amber);border:none;border-radius:12px;color:#000;font-size:16px;font-weight:700;cursor:pointer;transition:opacity .15s;font-family:inherit;}
+.btn-primary:hover{opacity:.9;}
+.btn-danger{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-danger:hover{background:rgba(239,68,68,.2);}
+.btn-edit{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-edit:hover{background:rgba(59,130,246,.2);}
+
+/* PERIOD */
+.period-toggle{display:flex;gap:6px;padding:0 20px 12px;flex-wrap:wrap;}
+.period-btn{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--text-dim);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;}
+.period-btn.active{background:var(--amber);border-color:var(--amber);color:#000;}
+
+/* EMPTY */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 32px;text-align:center;}
+.empty-icon{font-size:48px;margin-bottom:16px;}
+.empty-title{font-size:18px;font-weight:600;margin-bottom:8px;}
+.empty-desc{font-size:14px;color:var(--text-dim);line-height:1.5;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:200;display:flex;align-items:flex-end;animation:fadeIn .2s;}
+.modal{background:var(--surface);width:100%;max-height:82vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 0 calc(24px + var(--safe-bot));animation:slideUp .25s ease;border-radius:20px 20px 0 0;display:flex;flex-direction:column;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0;flex-shrink:0;}
+.modal-close-btn{width:32px;height:32px;border-radius:50%;border:none;background:var(--surface2);color:var(--text-dim);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
+.modal-close-btn:hover{background:var(--border);color:var(--text);}
+.modal-body{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;padding-top:16px;}
+@media(min-width:768px){.modal-overlay{align-items:center;justify-content:center;}.modal{max-width:540px;max-height:88vh;border-radius:18px;padding:0 0 28px;animation:scaleIn .22s ease;}}
+.modal-handle{display:none;}
+.modal-title{font-size:18px;font-weight:700;flex:1;}
+.modal-preview{margin:0 20px 16px;background:var(--surface2);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-around;}
+.preview-item{text-align:center;}
+.preview-val{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;}
+.preview-lbl{font-size:11px;color:var(--text-dim);margin-top:2px;}
+
+/* TUNING */
+.part-item{background:var(--surface);border-radius:var(--radius);padding:13px 16px;margin:0 20px 10px;border:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;}
+.part-icon{width:38px;height:38px;border-radius:10px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.part-cost-val{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--purple);}
+
+/* TUNING BANNER - 3 columns */
+.tuning-banner{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin:0 20px 12px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);}
+.tuning-banner-col{padding:14px 12px;text-align:center;display:flex;flex-direction:column;justify-content:center;}
+.tuning-banner-col+.tuning-banner-col{border-left:1px solid var(--border);}
+.tuning-banner-col.left{background:rgba(168,85,247,.08);}
+.tuning-banner-col.mid{background:rgba(245,158,11,.06);}
+.tuning-banner-col.right{background:rgba(16,185,129,.08);}
+.tb-val{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:3px;}
+.tb-lbl{font-size:10px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+
+/* SERVICE */
+.service-item{background:var(--surface);border-radius:var(--radius);padding:14px 16px;margin:0 20px 10px;border:1px solid var(--border);}
+.service-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;}
+.service-km{font-size:18px;font-weight:700;color:var(--teal);font-variant-numeric:tabular-nums;}
+.service-date{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.service-checks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.check-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+.check-done{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);}
+.check-skip{background:rgba(71,85,105,.1);color:var(--text-muted);border:1px solid var(--border);text-decoration:line-through;opacity:.5;}
+.service-note{font-size:12px;color:var(--text-dim);margin-top:6px;padding-top:8px;border-top:1px solid var(--border);line-height:1.5;}
+
+/* SERVICE CHECKLIST in modal */
+.checklist{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;}
+.check-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .15s;user-select:none;}
+.check-item.checked{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);}
+.check-box{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;transition:all .15s;}
+.check-item.checked .check-box{background:var(--green);border-color:var(--green);}
+.check-lbl{font-size:13px;font-weight:500;color:var(--text-dim);}
+.check-item.checked .check-lbl{color:var(--text);}
+.service-total-banner{background:rgba(20,184,166,.08);border:1px solid rgba(20,184,166,.2);border-radius:var(--radius);padding:14px 16px;margin:0 20px 12px;display:flex;justify-content:space-between;align-items:center;}
+
+/* ICON PICKER */
+.icon-picker-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.icon-opt{border-radius:10px;border:2px solid transparent;cursor:pointer;transition:all .2s;background:var(--surface2);display:flex;align-items:center;justify-content:center;width:52px;height:52px;}
+.icon-opt.selected{border-color:var(--amber);background:var(--amber-dim);}
+
+/* CONFIRM */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;display:flex;align-items:center;justify-content:center;padding:0 24px;}
+.confirm-box{background:var(--surface);border-radius:16px;padding:24px;width:100%;max-width:340px;border:1px solid var(--border);}
+.confirm-btns{display:flex;gap:10px;margin-top:20px;}
+
+@media(min-width:768px){.content::-webkit-scrollbar{width:6px;}.content::-webkit-scrollbar-track{background:transparent;}.content::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(50px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes scaleIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,useEffect,useRef}=React;
+
+// ── Storage ────────────────────────────────────────────────────────────────
+const KEY='carbutrack_v5';
+const defState=()=>({
+  vehicles:[
+    {id:'v1',name:'M135i',iconId:'m135i',purchasePrice:null,purchaseKm:null,extraKm:0},
+    {id:'v2',name:'S1000R',iconId:'s1000r',purchasePrice:null,purchaseKm:null,extraKm:0}
+  ],
+  fills:[],
+  parts:[],
+  services:[]
+});
+const loadData=()=>{
+  try{
+    const r=localStorage.getItem(KEY);
+    if(!r) return defState();
+    const d=JSON.parse(r);
+    if(!d.services) d.services=[];
+    if(!d.parts) d.parts=[];
+    d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,...v}));
+    return d;
+  }catch{return defState();}
+};
+const saveData=d=>{try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}};
+const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+
+// ── Service checklist items ────────────────────────────────────────────────
+const SERVICE_ITEMS=[
+  {id:'oil',label:'Huile moteur'},
+  {id:'oil_filter',label:'Filtre à huile'},
+  {id:'air_filter',label:'Filtre à air'},
+  {id:'spark_plugs',label:'Bougies'},
+  {id:'cabin_filter',label:'Filtre habitacle'},
+  {id:'brake_fluid',label:'Liquide de frein'},
+  {id:'coolant',label:'Liquide refroidissement'},
+  {id:'fuel_filter',label:'Filtre à carburant'},
+  {id:'timing_belt',label:'Courroie distribution'},
+  {id:'tires',label:'Pneus'},
+  {id:'brakes',label:'Plaquettes de frein'},
+  {id:'gearbox',label:'Liquide boîte'},
+];
+
+// ── Vehicle icons SVG ──────────────────────────────────────────────────────
+const ICONS={
+  'm135i':{label:'M135i',render:(sz=32)=>React.createElement('svg',{width:sz,height:Math.round(sz*.5),viewBox:'0 0 64 32',fill:'none'},
+    React.createElement('rect',{x:4,y:14,width:56,height:12,rx:3,fill:'#1a1a1a'}),
+    React.createElement('path',{d:'M12 14 L18 5 L46 5 L52 14 Z',fill:'#111'}),
+    React.createElement('path',{d:'M20 13 L23 7 L41 7 L44 13 Z',fill:'#1E3A5F',opacity:.9}),
+    React.createElement('line',{x1:32,y1:7,x2:32,y2:13,stroke:'#0F1117',strokeWidth:1}),
+    React.createElement('circle',{cx:16,cy:26,r:5,fill:'#0a0a0a',stroke:'#444',strokeWidth:1.5}),
+    React.createElement('circle',{cx:16,cy:26,r:2,fill:'#666'}),
+    React.createElement('circle',{cx:48,cy:26,r:5,fill:'#0a0a0a',stroke:'#444',strokeWidth:1.5}),
+    React.createElement('circle',{cx:48,cy:26,r:2,fill:'#666'}),
+    React.createElement('rect',{x:22,y:14,width:2,height:1,fill:'#3B82F6'}),
+    React.createElement('rect',{x:25,y:14,width:2,height:1,fill:'#A855F7'}),
+    React.createElement('rect',{x:28,y:14,width:2,height:1,fill:'#EF4444'}),
+    React.createElement('rect',{x:53,y:16,width:4,height:3,rx:1,fill:'#F59E0B',opacity:.8}),
+    React.createElement('rect',{x:7,y:16,width:4,height:3,rx:1,fill:'#F59E0B',opacity:.3}),
+  )},
+  's1000r':{label:'S1000R',render:(sz=32)=>React.createElement('svg',{width:sz,height:Math.round(sz*.6),viewBox:'0 0 64 38',fill:'none'},
+    React.createElement('path',{d:'M12 20 Q16 10 28 9 L42 9 Q52 9 54 16 L54 24 L10 24 Z',fill:'#111'}),
+    React.createElement('path',{d:'M28 9 L36 4 L46 8 L42 9 Z',fill:'#1a1a1a'}),
+    React.createElement('rect',{x:28,y:8,width:18,height:4,rx:2,fill:'#0a0a0a'}),
+    React.createElement('rect',{x:48,y:20,width:10,height:3,rx:1.5,fill:'#555'}),
+    React.createElement('line',{x1:15,y1:10,x2:13,y2:24,stroke:'#333',strokeWidth:2}),
+    React.createElement('circle',{cx:13,cy:28,r:7,fill:'#0a0a0a',stroke:'#444',strokeWidth:1.5}),
+    React.createElement('circle',{cx:13,cy:28,r:3,fill:'#555'}),
+    React.createElement('circle',{cx:51,cy:28,r:7,fill:'#0a0a0a',stroke:'#444',strokeWidth:1.5}),
+    React.createElement('circle',{cx:51,cy:28,r:3,fill:'#555'}),
+    React.createElement('path',{d:'M10 14 L14 12 L14 17 L10 16 Z',fill:'#F59E0B',opacity:.9}),
+  )},
+  'car':{label:'Voiture',render:(s=32)=>React.createElement('span',{style:{fontSize:s*.7,lineHeight:1}},'🚗')},
+  'car2':{label:'SUV',render:(s=32)=>React.createElement('span',{style:{fontSize:s*.7,lineHeight:1}},'🚙')},
+  'sport':{label:'Sport',render:(s=32)=>React.createElement('span',{style:{fontSize:s*.7,lineHeight:1}},'🏎️')},
+  'van':{label:'Van',render:(s=32)=>React.createElement('span',{style:{fontSize:s*.7,lineHeight:1}},'🚐')},
+  'truck':{label:'Camion',render:(s=32)=>React.createElement('span',{style:{fontSize:s*.7,lineHeight:1}},'🛻')},
+  'moto':{label:'Moto',render:(s=32)=>React.createElement('span',{style:{fontSize:s*.7,lineHeight:1}},'🏍️')},
+  'scooter':{label:'Scooter',render:(s=32)=>React.createElement('span',{style:{fontSize:s*.7,lineHeight:1}},'🛵')},
+  'bus':{label:'Bus',render:(s=32)=>React.createElement('span',{style:{fontSize:s*.7,lineHeight:1}},'🚌')},
+};
+const VehicleIcon=({iconId,size=28})=>{const ic=ICONS[iconId]||ICONS['car'];return ic.render(size);};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+const calcStats=fills=>{
+  if(!fills.length)return null;
+  const tL=fills.reduce((a,f)=>a+f.quantity,0);
+  const tKm=fills.reduce((a,f)=>a+f.km,0);
+  const tChf=fills.reduce((a,f)=>a+f.pricePerL*f.quantity,0);
+  const s95=fills.filter(f=>f.fuelType==='SP95').reduce((a,f)=>a+f.quantity,0);
+  const s98=fills.filter(f=>f.fuelType==='SP98').reduce((a,f)=>a+f.quantity,0);
+  const vk=fills.filter(f=>f.km>0);
+  const avg=vk.length?+((vk.reduce((a,f)=>a+f.quantity,0)/vk.reduce((a,f)=>a+f.km,0))*100).toFixed(2):null;
+  return{totalL:+tL.toFixed(1),totalKm:tKm,totalChf:+tChf.toFixed(2),sp95:+s95.toFixed(1),sp98:+s98.toFixed(1),avgL100:avg,count:fills.length};
+};
+const MONTHS=['Jan','Fév','Mar','Avr','Mai','Juin','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const fmtDate=iso=>{try{return new Date(iso).toLocaleDateString('fr-CH',{day:'2-digit',month:'short',year:'numeric'});}catch{return iso;}};
+const fmtNum=n=>n!=null?n.toLocaleString('fr-CH',{minimumFractionDigits:2,maximumFractionDigits:2}):'–';
+const groupBy=(fills,period)=>{
+  const map={};
+  fills.forEach(f=>{
+    const d=new Date(f.date);let key;
+    if(period==='week'){const s=new Date(d);s.setDate(d.getDate()-d.getDay()+1);key=s.toISOString().slice(0,10);}
+    else if(period==='month')key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    else key=`${d.getFullYear()}`;
+    if(!map[key])map[key]={key,totalL:0,totalChf:0,totalKm:0,count:0};
+    map[key].totalL+=f.quantity;map[key].totalChf+=f.pricePerL*f.quantity;map[key].totalKm+=f.km;map[key].count++;
+  });
+  return Object.values(map).sort((a,b)=>a.key.localeCompare(b.key)).slice(-10);
+};
+const fmtKey=(key,period)=>{
+  if(period==='week')return key.slice(5).replace('-','/');
+  if(period==='month'){const[,m]=key.split('-');return MONTHS[parseInt(m)-1];}
+  return key;
+};
+
+// ── SVG Charts ─────────────────────────────────────────────────────────────
+function BarChart({data,dataKey,color,period,unit,height=150}){
+  const [tip,setTip]=useState(null);
+  if(!data.length)return null;
+  const vals=data.map(d=>d[dataKey]||0),maxV=Math.max(...vals)||1;
+  const W=600,H=height,P={t:10,r:10,b:30,l:50};
+  const cW=W-P.l-P.r,cH=H-P.t-P.b,bW=Math.max(8,cW/data.length*.55),bGap=cW/data.length;
+  const yT=[0,.25,.5,.75,1].map(p=>({y:P.t+cH*(1-p),v:maxV*p}));
+  return React.createElement('div',{style:{position:'relative',width:'100%'}},
+    React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,style:{width:'100%',display:'block'}},
+      yT.map((t,i)=>React.createElement('g',{key:i},React.createElement('line',{x1:P.l,y1:t.y,x2:W-P.r,y2:t.y,stroke:'#2D3250',strokeWidth:1}),React.createElement('text',{x:P.l-6,y:t.y+4,textAnchor:'end',fontSize:10,fill:'#475569'},t.v>=1000?(t.v/1000).toFixed(1)+'k':t.v.toFixed(unit==='CHF'?1:0)))),
+      data.map((d,i)=>{const x=P.l+i*bGap+(bGap-bW)/2,bH=Math.max(2,(d[dataKey]||0)/maxV*cH),y=P.t+cH-bH;return React.createElement('g',{key:d.key,onMouseEnter:()=>setTip({label:fmtKey(d.key,period),val:d[dataKey]||0}),onMouseLeave:()=>setTip(null),style:{cursor:'pointer'}},React.createElement('rect',{x,y,width:bW,height:bH,fill:color,rx:3,opacity:.85}),React.createElement('text',{x:x+bW/2,y:H-P.b+14,textAnchor:'middle',fontSize:10,fill:'#475569'},fmtKey(d.key,period)));})
+    ),
+    tip&&React.createElement('div',{style:{position:'absolute',top:8,left:'50%',transform:'translateX(-50%)',background:'#232640',border:'1px solid #2D3250',borderRadius:8,padding:'6px 12px',fontSize:12,pointerEvents:'none',whiteSpace:'nowrap',zIndex:10}},React.createElement('div',{style:{color:'#94A3B8',marginBottom:3}},tip.label),React.createElement('div',{style:{fontWeight:700,color,fontVariantNumeric:'tabular-nums'}},`${unit==='CHF'?tip.val.toFixed(2):unit==='km'?Math.round(tip.val):tip.val.toFixed(1)} ${unit}`))
+  );
+}
+function AreaChart({data,dataKey,color,period,unit,height=150}){
+  const [tip,setTip]=useState(null);
+  if(!data.length)return null;
+  const vals=data.map(d=>d[dataKey]||0),maxV=Math.max(...vals)||1;
+  const W=600,H=height,P={t:10,r:10,b:30,l:50};
+  const cW=W-P.l-P.r,cH=H-P.t-P.b;
+  const pts=data.map((d,i)=>({x:P.l+(i/(data.length-1||1))*cW,y:P.t+cH*(1-(d[dataKey]||0)/maxV),d}));
+  const line=pts.map((p,i)=>`${i===0?'M':'L'}${p.x},${p.y}`).join(' ');
+  const area=`${line} L${pts[pts.length-1].x},${P.t+cH} L${pts[0].x},${P.t+cH} Z`;
+  const yT=[0,.25,.5,.75,1].map(p=>({y:P.t+cH*(1-p),v:maxV*p}));
+  const hW=cW/(data.length*2);
+  return React.createElement('div',{style:{position:'relative',width:'100%'}},
+    React.createElement('svg',{viewBox:`0 0 ${W} ${H}`,style:{width:'100%',display:'block'},onMouseLeave:()=>setTip(null)},
+      yT.map((t,i)=>React.createElement('g',{key:i},React.createElement('line',{x1:P.l,y1:t.y,x2:W-P.r,y2:t.y,stroke:'#2D3250',strokeWidth:1}),React.createElement('text',{x:P.l-6,y:t.y+4,textAnchor:'end',fontSize:10,fill:'#475569'},t.v>=1000?(t.v/1000).toFixed(1)+'k':t.v.toFixed(unit==='CHF'?1:0)))),
+      React.createElement('path',{d:area,fill:`${color}22`}),
+      React.createElement('path',{d:line,fill:'none',stroke:color,strokeWidth:2,strokeLinejoin:'round',strokeLinecap:'round'}),
+      pts.map((p,i)=>React.createElement('g',{key:i},React.createElement('circle',{cx:p.x,cy:p.y,r:4,fill:color}),React.createElement('rect',{x:p.x-Math.min(hW,40),y:P.t,width:Math.min(hW,40)*2,height:cH,fill:'transparent',style:{cursor:'pointer'},onMouseEnter:()=>setTip({label:fmtKey(p.d.key,period),val:p.d[dataKey]||0})}),React.createElement('text',{x:p.x,y:H-P.b+14,textAnchor:'middle',fontSize:10,fill:'#475569'},fmtKey(p.d.key,period))))
+    ),
+    tip&&React.createElement('div',{style:{position:'absolute',top:8,left:'50%',transform:'translateX(-50%)',background:'#232640',border:'1px solid #2D3250',borderRadius:8,padding:'6px 12px',fontSize:12,pointerEvents:'none',whiteSpace:'nowrap',zIndex:10}},React.createElement('div',{style:{color:'#94A3B8',marginBottom:3}},tip.label),React.createElement('div',{style:{fontWeight:700,color,fontVariantNumeric:'tabular-nums'}},`${unit==='CHF'?tip.val.toFixed(2):unit==='km'?Math.round(tip.val):tip.val.toFixed(1)} ${unit}`))
+  );
+}
+function Donut({sp95,sp98}){
+  const tot=sp95+sp98||1,p95=sp95/tot,r=36,cx=50,cy=50,c=2*Math.PI*r,d95=c*p95,d98=c*(1-p95);
+  return React.createElement('svg',{viewBox:'0 0 100 100',width:88,height:88},
+    React.createElement('circle',{cx,cy,r,fill:'none',stroke:'#F59E0B',strokeWidth:14,strokeDasharray:`${d98} ${d95}`,strokeDashoffset:0}),
+    React.createElement('circle',{cx,cy,r,fill:'none',stroke:'#3B82F6',strokeWidth:14,strokeDasharray:`${d95} ${d98}`,strokeDashoffset:0,transform:`rotate(-90 ${cx} ${cy})`})
+  );
+}
+function FuelGauge({pct=0.5}){
+  const cx=90,cy=90,r=72;
+  const arc=(f,t)=>{const a1=(f-90)*Math.PI/180,a2=(t-90)*Math.PI/180;return `M${cx+r*Math.cos(a1)} ${cy+r*Math.sin(a1)} A${r} ${r} 0 ${t-f>180?1:0} 1 ${cx+r*Math.cos(a2)} ${cy+r*Math.sin(a2)}`;};
+  const angle=-130+pct*260,nr=(angle-90)*Math.PI/180;
+  return React.createElement('svg',{viewBox:'0 0 180 100',className:'gauge-svg'},
+    React.createElement('path',{d:arc(-130,130),fill:'none',stroke:'#2D3250',strokeWidth:13,strokeLinecap:'round'}),
+    React.createElement('path',{d:arc(-130,-130+pct*260),fill:'none',stroke:'#F59E0B',strokeWidth:13,strokeLinecap:'round',style:{transition:'all 1s ease'}}),
+    React.createElement('line',{x1:cx,y1:cy,x2:cx+64*Math.cos(nr),y2:cy+64*Math.sin(nr),stroke:'#F1F5F9',strokeWidth:2.5,strokeLinecap:'round',style:{transition:'all 1s ease'}}),
+    React.createElement('circle',{cx,cy,r:7,fill:'#1A1D2E',stroke:'#F59E0B',strokeWidth:2.5}),
+    React.createElement('text',{x:18,y:98,fill:'#475569',fontSize:11,fontWeight:600},'E'),
+    React.createElement('text',{x:152,y:98,fill:'#475569',fontSize:11,fontWeight:600},'F'),
+  );
+}
+
+// ── Confirm ────────────────────────────────────────────────────────────────
+function ConfirmDialog({message,onConfirm,onCancel}){
+  return React.createElement('div',{className:'confirm-overlay'},
+    React.createElement('div',{className:'confirm-box'},
+      React.createElement('div',{style:{fontSize:15,fontWeight:600,lineHeight:1.4}},message),
+      React.createElement('div',{className:'confirm-btns'},
+        React.createElement('button',{onClick:onCancel,style:{flex:1,padding:12,background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text-dim)',fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},'Annuler'),
+        React.createElement('button',{onClick:onConfirm,style:{flex:1,padding:12,background:'rgba(239,68,68,.15)',border:'1px solid rgba(239,68,68,.4)',borderRadius:10,color:'var(--red)',fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},'Supprimer')
+      )
+    )
+  );
+}
+
+// ── Fill Modal ─────────────────────────────────────────────────────────────
+function FillModal({vehicleId,existing,onClose,onSave}){
+  const today=new Date().toISOString().slice(0,10);
+  const [f,setF]=useState(existing?{date:existing.date,pricePerL:existing.pricePerL,quantity:existing.quantity,fuelType:existing.fuelType,km:existing.km,note:existing.note||''}:{date:today,pricePerL:'',quantity:'',fuelType:'SP95',km:'',note:''});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const total=f.pricePerL&&f.quantity?(+f.pricePerL * +f.quantity).toFixed(2):null;
+  const l100=f.quantity&&f.km&&+f.km>0?((+f.quantity/+f.km)*100).toFixed(2):null;
+  const chfkm=total&&f.km&&+f.km>0?(+total/+f.km).toFixed(4):null;
+  const save=()=>{if(!f.date||!f.pricePerL||!f.quantity||!f.km){alert('Remplissez tous les champs.');return;}onSave({id:existing?.id||uid(),vehicleId,date:f.date,pricePerL:+f.pricePerL,quantity:+f.quantity,fuelType:f.fuelType,km:+f.km,note:f.note});onClose();};
+  const ref=useRef();
+  return React.createElement('div',{className:'modal-overlay',ref,onClick:e=>{if(e.target===ref.current)onClose();}},
+    React.createElement('div',{className:'modal'},
+      React.createElement('div',{className:'modal-header'},
+        React.createElement('div',{className:'modal-title'},existing?'✏️ Modifier le plein':'⛽ Nouveau plein'),
+        React.createElement('button',{className:'modal-close-btn',onClick:onClose},'✕')
+      ),
+      React.createElement('div',{className:'modal-body'},
+        React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Date *'),React.createElement('input',{type:'date',className:'form-input',value:f.date,onChange:e=>set('date',e.target.value)})),
+        React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Carburant'),React.createElement('div',{className:'fuel-type-toggle'},React.createElement('button',{className:`fuel-type-btn sp95 ${f.fuelType==='SP95'?'active':''}`,onClick:()=>set('fuelType','SP95')},'SP95'),React.createElement('button',{className:`fuel-type-btn sp98 ${f.fuelType==='SP98'?'active':''}`,onClick:()=>set('fuelType','SP98')},'SP98'))),
+        React.createElement('div',{className:'form-section'},React.createElement('div',{className:'form-row'},React.createElement('div',null,React.createElement('label',{className:'form-label'},'Prix CHF/L *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.001',className:'form-input',placeholder:'1.850',value:f.pricePerL,onChange:e=>set('pricePerL',e.target.value)})),React.createElement('div',null,React.createElement('label',{className:'form-label'},'Quantité L *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.01',className:'form-input',placeholder:'45.00',value:f.quantity,onChange:e=>set('quantity',e.target.value)})))),
+        React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Km parcourus *'),React.createElement('input',{type:'number',inputMode:'numeric',className:'form-input',placeholder:'ex: 450',value:f.km,onChange:e=>set('km',e.target.value)})),
+        React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Note'),React.createElement('input',{type:'text',className:'form-input',placeholder:'Optionnel…',value:f.note,onChange:e=>set('note',e.target.value)})),
+        (total||l100)&&React.createElement('div',{className:'modal-preview'},
+          total&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#F59E0B'}},`${total} CHF`),React.createElement('div',{className:'preview-lbl'},'Total')),
+          l100&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#3B82F6'}},`${l100} L`),React.createElement('div',{className:'preview-lbl'},'L/100km')),
+          chfkm&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#10B981'}},chfkm),React.createElement('div',{className:'preview-lbl'},'CHF/km')),
+        ),
+        React.createElement('div',{className:'form-section'},React.createElement('button',{className:'btn-primary',onClick:save},existing?'Enregistrer':'⛽ Enregistrer le plein')),
+      )
+    )
+  );
+}
+
+// ── Part Modal ─────────────────────────────────────────────────────────────
+function PartModal({vehicleId,existing,onClose,onSave}){
+  const today=new Date().toISOString().slice(0,10);
+  const [f,setF]=useState(existing?{date:existing.date,name:existing.name,price:existing.price,note:existing.note||''}:{date:today,name:'',price:'',note:''});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const save=()=>{if(!f.date||!f.name||!f.price){alert('Remplissez tous les champs.');return;}onSave({id:existing?.id||uid(),vehicleId,date:f.date,name:f.name,price:+f.price,note:f.note});onClose();};
+  const ref=useRef();
+  return React.createElement('div',{className:'modal-overlay',ref,onClick:e=>{if(e.target===ref.current)onClose();}},
+    React.createElement('div',{className:'modal'},
+      React.createElement('div',{className:'modal-header'},
+        React.createElement('div',{className:'modal-title'},existing?'✏️ Modifier la pièce':'🔧 Nouvelle pièce'),
+        React.createElement('button',{className:'modal-close-btn',onClick:onClose},'✕')
+      ),
+      React.createElement('div',{className:'modal-body'},
+        React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Date *'),React.createElement('input',{type:'date',className:'form-input',value:f.date,onChange:e=>set('date',e.target.value)})),
+        React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Nom de la pièce *'),React.createElement('input',{type:'text',className:'form-input',placeholder:'Filtre K&N, Pot Akrapovic…',value:f.name,onChange:e=>set('name',e.target.value)})),
+        React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Prix CHF *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.01',className:'form-input',placeholder:'350.00',value:f.price,onChange:e=>set('price',e.target.value)})),
+        React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Note / marque / atelier'),React.createElement('input',{type:'text',className:'form-input',placeholder:'Optionnel…',value:f.note,onChange:e=>set('note',e.target.value)})),
+        f.price&&React.createElement('div',{style:{margin:'0 20px 16px',background:'rgba(168,85,247,.08)',border:'1px solid rgba(168,85,247,.2)',borderRadius:12,padding:'12px 16px',textAlign:'center'}},React.createElement('div',{style:{fontSize:20,fontWeight:700,color:'var(--purple)',fontVariantNumeric:'tabular-nums'}},`${(+f.price).toFixed(2)} CHF`)),
+        React.createElement('div',{className:'form-section'},React.createElement('button',{className:'btn-primary',style:{background:'var(--purple)'},onClick:save},existing?'Enregistrer':'🔧 Ajouter la pièce')),
+      )
+    )
+  );
+}
+
+// ── Service Modal ──────────────────────────────────────────────────────────
+function ServiceModal({vehicleId,existing,onClose,onSave}){
+  const today=new Date().toISOString().slice(0,10);
+  const [f,setF]=useState(existing
+    ?{date:existing.date,km:existing.km,checks:[...existing.checks],note:existing.note||''}
+    :{date:today,km:'',checks:[],note:''});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const toggleCheck=id=>setF(p=>({...p,checks:p.checks.includes(id)?p.checks.filter(x=>x!==id):[...p.checks,id]}));
+  const save=()=>{if(!f.date||!f.km){alert('Remplissez la date et le kilométrage.');return;}onSave({id:existing?.id||uid(),vehicleId,date:f.date,km:+f.km,checks:f.checks,note:f.note});onClose();};
+  const ref=useRef();
+  return React.createElement('div',{className:'modal-overlay',ref,onClick:e=>{if(e.target===ref.current)onClose();}},
+    React.createElement('div',{className:'modal'},
+      React.createElement('div',{className:'modal-header'},
+        React.createElement('div',{className:'modal-title'},existing?'✏️ Modifier le service':'🛠️ Nouveau service'),
+        React.createElement('button',{className:'modal-close-btn',onClick:onClose},'✕')
+      ),
+      React.createElement('div',{className:'modal-body'},
+        React.createElement('div',{className:'form-section'},React.createElement('div',{className:'form-row'},
+          React.createElement('div',null,React.createElement('label',{className:'form-label'},'Date *'),React.createElement('input',{type:'date',className:'form-input',value:f.date,onChange:e=>set('date',e.target.value)})),
+          React.createElement('div',null,React.createElement('label',{className:'form-label'},'Kilométrage *'),React.createElement('input',{type:'number',inputMode:'numeric',className:'form-input',placeholder:'ex: 45000',value:f.km,onChange:e=>set('km',e.target.value)}))
+        )),
+        React.createElement('div',{className:'form-section'},
+          React.createElement('label',{className:'form-label'},'Opérations effectuées'),
+          React.createElement('div',{className:'checklist'},
+            SERVICE_ITEMS.map(item=>React.createElement('div',{key:item.id,className:`check-item ${f.checks.includes(item.id)?'checked':''}`,onClick:()=>toggleCheck(item.id)},
+              React.createElement('div',{className:'check-box'},f.checks.includes(item.id)?'✓':''),
+              React.createElement('span',{className:'check-lbl'},item.label)
+            ))
+          )
+        ),
+        React.createElement('div',{className:'form-section'},
+          React.createElement('label',{className:'form-label'},'Notes / opérations supplémentaires'),
+          React.createElement('textarea',{className:'form-input',placeholder:'Ex: Remplacement amortisseurs, courroie accessoire, diagnostic…',value:f.note,onChange:e=>set('note',e.target.value)})
+        ),
+        React.createElement('div',{className:'form-section'},React.createElement('button',{className:'btn-primary',style:{background:'var(--teal)'},onClick:save},existing?'Enregistrer':'🛠️ Enregistrer le service')),
+      )
+    )
+  );
+}
+
+// ── Vehicle Modal ──────────────────────────────────────────────────────────
+function VehicleModal({existing,onClose,onSave}){
+  const [name,setName]=useState(existing?.name||'');
+  const [iconId,setIconId]=useState(existing?.iconId||'car');
+  const [pp,setPP]=useState(existing?.purchasePrice!=null?existing.purchasePrice:'');
+  const [pk,setPK]=useState(existing?.purchaseKm!=null?existing.purchaseKm:'');
+  const [ek,setEK]=useState(existing?.extraKm!=null&&existing.extraKm!==0?existing.extraKm:'');
+  const save=()=>{
+    if(!name.trim()){alert('Donnez un nom.');return;}
+    onSave({
+      id:existing?.id||uid(),
+      name:name.trim(),
+      iconId,
+      purchasePrice:pp!==''?+pp:null,
+      purchaseKm:pk!==''?+pk:null,
+      extraKm:ek!==''?+ek:0,
+    });
+    onClose();
+  };
+  const ref=useRef();
+  return React.createElement('div',{className:'modal-overlay',ref,onClick:e=>{if(e.target===ref.current)onClose();}},
+    React.createElement('div',{className:'modal'},
+      React.createElement('div',{className:'modal-header'},
+        React.createElement('div',{className:'modal-title'},existing?'✏️ Modifier le véhicule':'🚗 Nouveau véhicule'),
+        React.createElement('button',{className:'modal-close-btn',onClick:onClose},'✕')
+      ),
+      React.createElement('div',{className:'modal-body'},
+        React.createElement('div',{className:'form-section'},
+          React.createElement('label',{className:'form-label'},'Nom *'),
+          React.createElement('input',{type:'text',className:'form-input',placeholder:'BMW M135i, Honda CB500…',value:name,onChange:e=>setName(e.target.value)})
+        ),
+        React.createElement('div',{className:'form-section'},
+          React.createElement('div',{className:'form-row'},
+            React.createElement('div',null,
+              React.createElement('label',{className:'form-label'},'Prix d\'achat (CHF)'),
+              React.createElement('input',{type:'number',inputMode:'decimal',step:'1',className:'form-input',placeholder:'ex: 32 000',value:pp,onChange:e=>setPP(e.target.value)})
+            ),
+            React.createElement('div',null,
+              React.createElement('label',{className:'form-label'},'Km à l\'achat'),
+              React.createElement('input',{type:'number',inputMode:'numeric',step:'1',className:'form-input',placeholder:'ex: 15 000',value:pk,onChange:e=>setPK(e.target.value)})
+            ),
+          )
+        ),
+        React.createElement('div',{className:'form-section'},
+          React.createElement('label',{className:'form-label'},'Km supplémentaires (avant CarbuTrack)'),
+          React.createElement('input',{type:'number',inputMode:'numeric',step:'1',className:'form-input',placeholder:'ex: 3 200',value:ek,onChange:e=>setEK(e.target.value)}),
+          React.createElement('div',{style:{fontSize:11,color:'var(--text-muted)',marginTop:5}},'Km parcourus depuis l\'achat non encore enregistrés en pleins.')
+        ),
+        React.createElement('div',{className:'form-section'},
+          React.createElement('label',{className:'form-label'},'Icône'),
+          React.createElement('div',{className:'icon-picker-grid'},Object.entries(ICONS).map(([id,ic])=>React.createElement('div',{key:id,className:`icon-opt ${iconId===id?'selected':''}`,onClick:()=>setIconId(id),title:ic.label},React.createElement(VehicleIcon,{iconId:id,size:32}))))
+        ),
+        React.createElement('div',{className:'form-section'},React.createElement('button',{className:'btn-primary',onClick:save},existing?'Enregistrer':'Ajouter le véhicule')),
+      )
+    )
+  );
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm}){
+  // Compute current km for each vehicle
+  const currentKm=(v)=>{
+    const trackedKm=data.fills.filter(f=>f.vehicleId===v.id).reduce((a,f)=>a+f.km,0);
+    const base=(v.purchaseKm||0)+(v.extraKm||0);
+    return base+trackedKm;
+  };
+  return React.createElement('div',{className:'page-wrap'},
+    React.createElement('div',{className:'page-header'},React.createElement('div',{className:'page-title'},'Réglages')),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
+        React.createElement('div',{className:'card-title',style:{margin:0}},'Véhicules'),
+        React.createElement('button',{className:'btn-edit',style:{fontSize:12},onClick:()=>setShowVehicleEdit({mode:'add'})},'+ Nouveau véhicule')
+      ),
+      data.vehicles.map(v=>{
+        const curKm=currentKm(v);
+        const trackedKm=data.fills.filter(f=>f.vehicleId===v.id).reduce((a,f)=>a+f.km,0);
+        return React.createElement('div',{key:v.id,style:{padding:'12px 0',borderTop:'1px solid var(--border)'}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12}},
+            React.createElement('div',{style:{width:40,height:40,borderRadius:10,background:'var(--surface2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},
+              React.createElement(VehicleIcon,{iconId:v.iconId,size:30})
+            ),
+            React.createElement('div',{style:{flex:1}},
+              React.createElement('div',{style:{fontWeight:600,fontSize:15}},v.name),
+              React.createElement('div',{style:{fontSize:12,color:'var(--text-dim)',marginTop:2,display:'flex',gap:10,flexWrap:'wrap'}},
+                v.purchasePrice!=null
+                  ? React.createElement('span',null,`💰 ${fmtNum(v.purchasePrice)} CHF`)
+                  : React.createElement('span',{style:{color:'var(--text-muted)'}},'Prix non renseigné')
+              )
+            ),
+            React.createElement('div',{style:{display:'flex',gap:8}},
+              React.createElement('button',{className:'btn-edit',style:{fontSize:12},onClick:()=>setShowVehicleEdit({mode:'edit',vehicle:v})},'✏️'),
+              data.vehicles.length>1&&React.createElement('button',{className:'btn-danger',style:{fontSize:12},onClick:()=>setConfirm({msg:`Supprimer ${v.name} et tout son historique ?`,cb:()=>setData(d=>({...d,vehicles:d.vehicles.filter(x=>x.id!==v.id),fills:d.fills.filter(f=>f.vehicleId!==v.id),parts:d.parts.filter(p=>p.vehicleId!==v.id),services:d.services.filter(s=>s.vehicleId!==v.id)}))})},  '🗑')
+            )
+          ),
+          // Km row
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:10}},
+            React.createElement('div',{style:{background:'var(--surface2)',borderRadius:10,padding:'8px 10px',textAlign:'center'}},
+              React.createElement('div',{style:{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--text-dim)'}},v.purchaseKm!=null?v.purchaseKm.toLocaleString('fr-CH'):'–'),
+              React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:2}},'Km à l\'achat')
+            ),
+            React.createElement('div',{style:{background:'var(--surface2)',borderRadius:10,padding:'8px 10px',textAlign:'center'}},
+              React.createElement('div',{style:{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--blue)'}},`+${trackedKm.toLocaleString('fr-CH')}`),
+              React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:2}},'Via CarbuTrack')
+            ),
+            React.createElement('div',{style:{background:'rgba(16,185,129,.08)',border:'1px solid rgba(16,185,129,.2)',borderRadius:10,padding:'8px 10px',textAlign:'center'}},
+              React.createElement('div',{style:{fontSize:14,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'var(--green)'}},curKm.toLocaleString('fr-CH')),
+              React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:2}},'Km actuels')
+            ),
+          )
+        );
+      })
+    ),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-title'},'Données'),
+      React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
+        React.createElement('button',{style:{width:'100%',padding:12,background:'rgba(16,185,129,.1)',color:'var(--green)',border:'1px solid rgba(16,185,129,.3)',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'},onClick:exportData},'📤 Exporter les données (JSON)'),
+        React.createElement('div',null,
+          React.createElement('input',{type:'file',accept:'.json',ref:importRef,style:{display:'none'},onChange:e=>{if(e.target.files[0]){const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.vehicles&&d.fills){if(!d.parts)d.parts=[];if(!d.services)d.services=[];d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,...v}));setData(d);alert('Données importées !');}else alert('Fichier invalide.');}catch{alert('Erreur.');}};r.readAsText(e.target.files[0]);}}}),
+          React.createElement('button',{style:{width:'100%',padding:12,background:'rgba(59,130,246,.1)',color:'var(--blue)',border:'1px solid rgba(59,130,246,.3)',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'},onClick:()=>importRef.current.click()},'📥 Importer des données (JSON)')
+        ),
+        React.createElement('button',{className:'btn-danger',style:{width:'100%',padding:12},onClick:()=>setConfirm({msg:'Supprimer TOUTES les données ?',cb:()=>setData(defState())})},'🗑 Effacer toutes les données')
+      )
+    ),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-title'},'À propos'),
+      React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)',lineHeight:1.8}},
+        'CarbuTrack v3.0',React.createElement('br'),
+        React.createElement('strong',{style:{color:'var(--text)'}},'📱 iPhone : '),'Safari → Partager → "Sur l\'écran d\'accueil"',React.createElement('br'),
+        React.createElement('strong',{style:{color:'var(--text)'}},'💻 Windows : '),'Chrome/Edge → ⋮ → "Installer"',React.createElement('br'),
+        React.createElement('strong',{style:{color:'var(--text)'}},'🔄 Transfert : '),'Export → Import entre appareils',
+      )
+    )
+  );
+}
+
+// ── APP ────────────────────────────────────────────────────────────────────
+function App(){
+  const [data,setData]=useState(loadData);
+  const [tab,setTab]=useState('dashboard');
+  const [activeV,setActiveV]=useState(()=>loadData().vehicles[0]?.id||'v1');
+  const [period,setPeriod]=useState('month');
+  const [showAdd,setShowAdd]=useState(false);
+  const [editFill,setEditFill]=useState(null);
+  const [showAddPart,setShowAddPart]=useState(false);
+  const [editPart,setEditPart]=useState(null);
+  const [showAddService,setShowAddService]=useState(false);
+  const [editService,setEditService]=useState(null);
+  const [showVehicleEdit,setShowVehicleEdit]=useState(null);
+  const [confirm,setConfirm]=useState(null);
+  const importRef=useRef();
+
+  useEffect(()=>{saveData(data);},[data]);
+  useEffect(()=>{if(!data.vehicles.find(v=>v.id===activeV)&&data.vehicles.length>0)setActiveV(data.vehicles[0].id);},[data.vehicles]);
+
+  const vFills=data.fills.filter(f=>f.vehicleId===activeV).sort((a,b)=>b.date.localeCompare(a.date));
+  const vParts=(data.parts||[]).filter(p=>p.vehicleId===activeV).sort((a,b)=>b.date.localeCompare(a.date));
+  const vServices=(data.services||[]).filter(s=>s.vehicleId===activeV).sort((a,b)=>b.date.localeCompare(a.date));
+  const stats=calcStats(vFills);
+  const vehicle=data.vehicles.find(v=>v.id===activeV);
+
+  const saveFill=fill=>setData(d=>({...d,fills:d.fills.find(f=>f.id===fill.id)?d.fills.map(f=>f.id===fill.id?fill:f):[fill,...d.fills]}));
+  const savePart=part=>setData(d=>({...d,parts:(d.parts||[]).find(p=>p.id===part.id)?(d.parts||[]).map(p=>p.id===part.id?part:p):[part,...(d.parts||[])]}));
+  const saveService=svc=>setData(d=>({...d,services:(d.services||[]).find(s=>s.id===svc.id)?(d.services||[]).map(s=>s.id===svc.id?svc:s):[svc,...(d.services||[])]}));
+  const saveVehicle=v=>{setData(d=>({...d,vehicles:d.vehicles.find(x=>x.id===v.id)?d.vehicles.map(x=>x.id===v.id?v:x):[...d.vehicles,v]}));setActiveV(v.id);};
+  const exportData=()=>{const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='carbutrack_backup.json';a.click();};
+
+  const addBtn=(onClick,color='var(--amber)')=>React.createElement('button',{onClick,style:{background:color,border:'none',borderRadius:12,width:42,height:42,fontSize:22,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},'+');
+
+  const VehicleBar=()=>React.createElement('div',{className:'vehicle-toggle-wrap'},
+    React.createElement('div',{className:'vehicle-toggle'},
+      data.vehicles.map(v=>React.createElement('button',{key:v.id,className:`vehicle-btn ${activeV===v.id?'active':''}`,onClick:()=>setActiveV(v.id)},React.createElement(VehicleIcon,{iconId:v.iconId,size:22}),v.name)),
+      React.createElement('button',{className:'veh-add-btn',onClick:()=>setShowVehicleEdit({mode:'add'}),title:'Ajouter un véhicule'},'＋')
+    )
+  );
+
+  // ── DASHBOARD ────────────────────────────────────────────────────────────
+  const Dashboard=()=>{
+    const pct=stats?Math.min(1,Math.max(0.04,(stats.count%10)/10+0.25)):0.04;
+    const lf=vFills[0];
+    const totalParts=vParts.reduce((a,p)=>a+p.price,0);
+    const purchPrice=vehicle?.purchasePrice;
+    const grandTotal=purchPrice!=null?totalParts+purchPrice:null;
+    return React.createElement('div',{className:'page-wrap'},
+      React.createElement('div',{className:'page-header'},
+        React.createElement('div',null,React.createElement('div',{className:'page-title'},'⛽ CarbuTrack'),React.createElement('div',{className:'page-subtitle'},'Carburant · Tuning · Service')),
+        addBtn(()=>setShowAdd(true))
+      ),
+      React.createElement(VehicleBar),
+      !stats?React.createElement('div',{className:'empty'},React.createElement('div',{style:{marginBottom:12}},React.createElement(VehicleIcon,{iconId:vehicle?.iconId||'car',size:56})),React.createElement('div',{className:'empty-title'},vehicle?.name||'Véhicule'),React.createElement('div',{className:'empty-desc'},'Appuyez sur + pour enregistrer votre premier plein.')):
+      React.createElement(React.Fragment,null,
+        React.createElement('div',{className:'stats-grid'},
+          React.createElement('div',{className:'stat-card'},React.createElement('div',{className:'stat-value stat-accent'},stats.totalChf),React.createElement('div',{className:'stat-label'},'Carburant CHF')),
+          React.createElement('div',{className:'stat-card'},React.createElement('div',{className:'stat-value'},stats.totalKm),React.createElement('div',{className:'stat-label'},'Km parcourus')),
+          React.createElement('div',{className:'stat-card'},React.createElement('div',{className:'stat-value'},stats.totalL),React.createElement('div',{className:'stat-label'},'Litres consommés')),
+          React.createElement('div',{className:'stat-card'},React.createElement('div',{className:'stat-value',style:{color:stats.avgL100>8?'var(--red)':stats.avgL100>6?'var(--amber)':'var(--green)'}},stats.avgL100||'–'),React.createElement('div',{className:'stat-label'},'L/100 km')),
+        ),
+        // Tuning banner if data
+        (vParts.length>0||purchPrice!=null)&&React.createElement('div',{className:'tuning-banner'},
+          React.createElement('div',{className:'tuning-banner-col left'},React.createElement('div',{className:'tb-val',style:{color:'var(--purple)'}},`${totalParts.toFixed(2)} CHF`),React.createElement('div',{className:'tb-lbl'},'Tuning')),
+          React.createElement('div',{className:'tuning-banner-col mid'},React.createElement('div',{className:'tb-val',style:{color:'var(--amber)'}},purchPrice!=null?`${fmtNum(purchPrice)} CHF`:'–'),React.createElement('div',{className:'tb-lbl'},'Prix achat')),
+          React.createElement('div',{className:'tuning-banner-col right'},React.createElement('div',{className:'tb-val',style:{color:'var(--green)'}},grandTotal!=null?`${fmtNum(grandTotal)} CHF`:'–'),React.createElement('div',{className:'tb-lbl'},'Total investi')),
+        ),
+        React.createElement('div',{className:'dash-grid'},
+          React.createElement('div',null,React.createElement('div',{className:'card'},React.createElement('div',{className:'card-title'},'Activité récente'),React.createElement('div',{className:'gauge-wrap'},React.createElement(FuelGauge,{pct}),React.createElement('div',{style:{fontSize:12,color:'var(--text-dim)',marginTop:6}},`Dernier plein : ${fmtDate(lf.date)}`),React.createElement('div',{style:{fontSize:11,color:'var(--text-muted)',marginTop:2}},`${lf.quantity} L · ${lf.fuelType} · ${stats.count} plein${stats.count>1?'s':''}`)))),
+          React.createElement('div',null,React.createElement('div',{className:'card'},React.createElement('div',{className:'card-title'},'Répartition carburant'),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:16}},React.createElement(Donut,{sp95:stats.sp95,sp98:stats.sp98}),React.createElement('div',{style:{flex:1}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:10}},React.createElement('span',{className:'fuel-badge fuel-sp95'},'SP95'),React.createElement('span',{style:{fontWeight:700,fontVariantNumeric:'tabular-nums'}},`${stats.sp95} L`)),React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},React.createElement('span',{className:'fuel-badge fuel-sp98'},'SP98'),React.createElement('span',{style:{fontWeight:700,fontVariantNumeric:'tabular-nums'}},`${stats.sp98} L`)))))),
+          React.createElement('div',{className:'dash-full'},React.createElement('div',{className:'card'},React.createElement('div',{className:'card-title'},'Dernier plein'),React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}},React.createElement('div',null,React.createElement('div',{style:{fontSize:22,fontWeight:700,color:'var(--amber)',fontVariantNumeric:'tabular-nums'}},`${(lf.pricePerL*lf.quantity).toFixed(2)} CHF`),React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)',marginTop:4}},`${lf.quantity} L · ${lf.pricePerL.toFixed(3)} CHF/L · ${fmtDate(lf.date)}`),React.createElement('div',{style:{marginTop:6}},React.createElement('span',{className:`fuel-badge fuel-${lf.fuelType.toLowerCase()}`},lf.fuelType))),lf.km>0&&React.createElement('div',{style:{display:'flex',gap:20}},React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:20,fontWeight:700,color:'#3B82F6',fontVariantNumeric:'tabular-nums'}},((lf.quantity/lf.km)*100).toFixed(2)),React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)'}},'L/100 km')),React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:20,fontWeight:700,color:'#10B981',fontVariantNumeric:'tabular-nums'}},lf.km),React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)'}},'km parcourus')),React.createElement('div',{style:{textAlign:'center'}},React.createElement('div',{style:{fontSize:20,fontWeight:700,color:'#94A3B8',fontVariantNumeric:'tabular-nums'}},((lf.pricePerL*lf.quantity)/lf.km).toFixed(4)),React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)'}},'CHF/km'))))))
+        )
+      )
+    );
+  };
+
+  // ── HISTORY ──────────────────────────────────────────────────────────────
+  const History=()=>React.createElement('div',{className:'page-wrap'},
+    React.createElement('div',{className:'page-header'},React.createElement('div',null,React.createElement('div',{className:'page-title'},'Historique'),React.createElement('div',{className:'page-subtitle'},`${vFills.length} plein${vFills.length!==1?'s':''}`)),addBtn(()=>setShowAdd(true))),
+    React.createElement(VehicleBar),
+    vFills.length===0?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'📋'),React.createElement('div',{className:'empty-title'},'Historique vide'),React.createElement('div',{className:'empty-desc'},'Vos pleins apparaîtront ici.')):
+    vFills.map(f=>{
+      const total=(f.pricePerL*f.quantity).toFixed(2),l100=f.km>0?((f.quantity/f.km)*100).toFixed(2):null;
+      return React.createElement('div',{key:f.id,className:'fill-item'},
+        React.createElement('div',{className:'fill-icon'},f.fuelType==='SP98'?'🔶':'🔷'),
+        React.createElement('div',{className:'fill-main'},
+          React.createElement('div',{className:'fill-date'},fmtDate(f.date)),
+          React.createElement('div',{className:'fill-title'},React.createElement('span',{className:`fuel-badge fuel-${f.fuelType.toLowerCase()}`,style:{marginRight:6}},f.fuelType),`${f.quantity} L · ${f.pricePerL.toFixed(3)} CHF/L`),
+          React.createElement('div',{className:'fill-meta'},`${f.km} km parcourus${f.note?' · '+f.note:''}`),
+          React.createElement('div',{className:'actions-row'},
+            React.createElement('button',{className:'btn-edit',onClick:()=>setEditFill(f)},'✏️ Modifier'),
+            React.createElement('button',{className:'btn-danger',onClick:()=>setConfirm({msg:'Supprimer ce plein ?',cb:()=>setData(d=>({...d,fills:d.fills.filter(x=>x.id!==f.id)}))})},  '🗑 Supprimer')
+          )
+        ),
+        React.createElement('div',{className:'fill-cost'},React.createElement('div',{className:'fill-cost-val'},total),React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)'}},'CHF'),l100&&React.createElement('div',{className:'fill-lkm'},`${l100} L/100`))
+      );
+    })
+  );
+
+  // ── TUNING ───────────────────────────────────────────────────────────────
+  const Tuning=()=>{
+    const totalParts=vParts.reduce((a,p)=>a+p.price,0);
+    const purchPrice=vehicle?.purchasePrice;
+    const grandTotal=purchPrice!=null?totalParts+purchPrice:null;
+    return React.createElement('div',{className:'page-wrap'},
+      React.createElement('div',{className:'page-header'},React.createElement('div',null,React.createElement('div',{className:'page-title'},'🔧 Tuning'),React.createElement('div',{className:'page-subtitle'},`${vParts.length} pièce${vParts.length!==1?'s':''}`)),addBtn(()=>setShowAddPart(true),'var(--purple)')),
+      React.createElement(VehicleBar),
+      React.createElement('div',{className:'tuning-banner'},
+        React.createElement('div',{className:'tuning-banner-col left'},React.createElement('div',{className:'tb-val',style:{color:'var(--purple)'}},`${totalParts.toFixed(2)} CHF`),React.createElement('div',{className:'tb-lbl'},'Tuning')),
+        React.createElement('div',{className:'tuning-banner-col mid'},React.createElement('div',{className:'tb-val',style:{color:'var(--amber)'}},purchPrice!=null?`${fmtNum(purchPrice)} CHF`:'–'),React.createElement('div',{className:'tb-lbl'},'Prix achat')),
+        React.createElement('div',{className:'tuning-banner-col right'},React.createElement('div',{className:'tb-val',style:{color:'var(--green)'}},grandTotal!=null?`${fmtNum(grandTotal)} CHF`:'–'),React.createElement('div',{className:'tb-lbl'},'Total investi')),
+      ),
+      vParts.length===0?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'🔧'),React.createElement('div',{className:'empty-title'},'Aucune pièce enregistrée'),React.createElement('div',{className:'empty-desc'},'Appuyez sur + pour ajouter une pièce ou modification.')):
+      vParts.map(p=>React.createElement('div',{key:p.id,className:'part-item'},
+        React.createElement('div',{className:'part-icon'},'🔧'),
+        React.createElement('div',{className:'fill-main'},
+          React.createElement('div',{className:'fill-date'},fmtDate(p.date)),
+          React.createElement('div',{className:'fill-title'},p.name),
+          p.note&&React.createElement('div',{className:'fill-meta'},p.note),
+          React.createElement('div',{className:'actions-row'},
+            React.createElement('button',{className:'btn-edit',onClick:()=>setEditPart(p)},'✏️ Modifier'),
+            React.createElement('button',{className:'btn-danger',onClick:()=>setConfirm({msg:`Supprimer "${p.name}" ?`,cb:()=>setData(d=>({...d,parts:(d.parts||[]).filter(x=>x.id!==p.id)}))})},  '🗑 Supprimer')
+          )
+        ),
+        React.createElement('div',{className:'fill-cost'},React.createElement('div',{className:'part-cost-val'},p.price.toFixed(2)),React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)'}},'CHF'))
+      ))
+    );
+  };
+
+  // ── SERVICE ───────────────────────────────────────────────────────────────
+  const Service=()=>React.createElement('div',{className:'page-wrap'},
+    React.createElement('div',{className:'page-header'},React.createElement('div',null,React.createElement('div',{className:'page-title'},'🛠️ Service'),React.createElement('div',{className:'page-subtitle'},`${vServices.length} service${vServices.length!==1?'s':''} enregistré${vServices.length!==1?'s':''}`)),addBtn(()=>setShowAddService(true),'var(--teal)')),
+    React.createElement(VehicleBar),
+    vServices.length===0?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'🛠️'),React.createElement('div',{className:'empty-title'},'Aucun service enregistré'),React.createElement('div',{className:'empty-desc'},'Enregistrez vos révisions avec les opérations effectuées et le kilométrage.')):
+    vServices.map(s=>{
+      const done=SERVICE_ITEMS.filter(i=>s.checks.includes(i.id));
+      const skip=SERVICE_ITEMS.filter(i=>!s.checks.includes(i.id));
+      return React.createElement('div',{key:s.id,className:'service-item'},
+        React.createElement('div',{className:'service-header'},
+          React.createElement('div',null,
+            React.createElement('div',{className:'service-km'},`${s.km.toLocaleString('fr-CH')} km`),
+            React.createElement('div',{className:'service-date'},fmtDate(s.date))
+          ),
+          React.createElement('div',{style:{display:'flex',gap:8,flexShrink:0}},
+            React.createElement('button',{className:'btn-edit',style:{fontSize:12},onClick:()=>setEditService(s)},'✏️'),
+            React.createElement('button',{className:'btn-danger',style:{fontSize:12},onClick:()=>setConfirm({msg:'Supprimer ce service ?',cb:()=>setData(d=>({...d,services:(d.services||[]).filter(x=>x.id!==s.id)}))})},  '🗑')
+          )
+        ),
+        done.length>0&&React.createElement('div',{className:'service-checks'},
+          done.map(i=>React.createElement('span',{key:i.id,className:'check-badge check-done'},'✓ '+i.label))
+        ),
+        s.note&&React.createElement('div',{className:'service-note'},s.note)
+      );
+    })
+  );
+
+  // ── CHARTS ────────────────────────────────────────────────────────────────
+  const Charts=()=>{
+    const cd=groupBy(vFills,period);
+
+    // Period label for totals
+    const periodLabel=period==='week'?'cette semaine':period==='month'?'ce mois':'cette année';
+
+    // Compute L/100km per bucket (need fills grouped with km info)
+    const cdL100=cd.map(d=>{
+      const l100=d.totalKm>0?+((d.totalL/d.totalKm)*100).toFixed(2):null;
+      return{...d,l100km:l100||0};
+    });
+
+    // Total of last visible bucket (most recent period)
+    const last=cd.length>0?cd[cd.length-1]:null;
+    const lastL100=last&&last.totalKm>0?((last.totalL/last.totalKm)*100).toFixed(2):null;
+
+    // Pill component shown below each chart
+    const TotalPill=({label,value,color,extra})=>React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)'}},
+      React.createElement('div',{style:{fontSize:12,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.5px'}},label),
+      React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:6}},
+        React.createElement('span',{style:{fontSize:20,fontWeight:700,fontVariantNumeric:'tabular-nums',color}},value),
+        extra&&React.createElement('span',{style:{fontSize:12,color:'var(--text-muted)'}},extra)
+      )
+    );
+
+    return React.createElement('div',{className:'page-wrap'},
+      React.createElement('div',{className:'page-header'},React.createElement('div',{className:'page-title'},'Graphiques')),
+      React.createElement(VehicleBar),
+      React.createElement('div',{className:'period-toggle'},['week','month','year'].map(p=>React.createElement('button',{key:p,className:`period-btn ${period===p?'active':''}`,onClick:()=>setPeriod(p)},p==='week'?'Semaine':p==='month'?'Mois':'Année'))),
+      vFills.length<2?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'📊'),React.createElement('div',{className:'empty-title'},'Pas assez de données'),React.createElement('div',{className:'empty-desc'},'Au moins 2 pleins sont nécessaires.')):
+      React.createElement(React.Fragment,null,
+
+        // 1 — Dépenses CHF
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-title'},'Dépenses (CHF)'),
+          React.createElement(AreaChart,{data:cd,dataKey:'totalChf',color:'#F59E0B',period,unit:'CHF'}),
+          last&&React.createElement(TotalPill,{label:`Total ${periodLabel}`,value:`${last.totalChf.toFixed(2)}`,color:'#F59E0B',extra:'CHF'})
+        ),
+
+        // 2 — Litres
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-title'},'Litres consommés'),
+          React.createElement(BarChart,{data:cd,dataKey:'totalL',color:'#3B82F6',period,unit:'L'}),
+          last&&React.createElement(TotalPill,{label:`Total ${periodLabel}`,value:`${last.totalL.toFixed(1)}`,color:'#3B82F6',extra:'L'})
+        ),
+
+        // 3 — Kilomètres
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-title'},'Kilomètres parcourus'),
+          React.createElement(AreaChart,{data:cd,dataKey:'totalKm',color:'#10B981',period,unit:'km'}),
+          last&&React.createElement(TotalPill,{label:`Total ${periodLabel}`,value:`${Math.round(last.totalKm).toLocaleString('fr-CH')}`,color:'#10B981',extra:'km'})
+        ),
+
+        // 4 — L/100 km (new)
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-title'},'Consommation (L/100 km)'),
+          React.createElement(AreaChart,{data:cdL100,dataKey:'l100km',color:'#A855F7',period,unit:'L/100'}),
+          last&&lastL100&&React.createElement(TotalPill,{label:`Moyenne ${periodLabel}`,value:lastL100,color:'#A855F7',extra:'L/100 km'})
+        ),
+      )
+    );
+  };
+
+  const navItems=[
+    {id:'dashboard',icon:'🏠',label:'Accueil'},
+    {id:'history',icon:'📋',label:'Historique'},
+    {id:'tuning',icon:'🔧',label:'Tuning'},
+    {id:'service',icon:'🛠️',label:'Service'},
+    {id:'charts',icon:'📊',label:'Graphiques'},
+    {id:'settings',icon:'⚙️',label:'Réglages'},
+  ];
+
+  const renderPage=()=>{
+    if(tab==='dashboard') return React.createElement(Dashboard);
+    if(tab==='history') return React.createElement(History);
+    if(tab==='tuning') return React.createElement(Tuning);
+    if(tab==='service') return React.createElement(Service);
+    if(tab==='charts') return React.createElement(Charts);
+    return React.createElement(Settings,{data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm});
+  };
+
+  return React.createElement('div',{className:'app'},
+    React.createElement('aside',{className:'sidebar'},
+      React.createElement('div',{className:'sidebar-logo'},React.createElement('div',{className:'sidebar-logo-title'},'⛽ CarbuTrack'),React.createElement('div',{className:'sidebar-logo-sub'},'Carburant · Tuning · Service')),
+      React.createElement('nav',{className:'sidebar-nav'},navItems.map(n=>React.createElement('button',{key:n.id,className:`sidebar-btn ${tab===n.id?'active':''}`,onClick:()=>setTab(n.id)},React.createElement('span',{className:'s-icon'},n.icon),n.label))),
+      React.createElement('div',{className:'sidebar-footer'},React.createElement('div',{className:'sidebar-footer-text'},'Données stockées localement.'))
+    ),
+    React.createElement('div',{className:'main'},
+      React.createElement('div',{className:'status-bar'}),
+      React.createElement('div',{className:'content'},renderPage()),
+    ),
+    React.createElement('div',{className:'tab-bar'},
+      React.createElement('div',{className:'tab-bar-inner'},navItems.map(n=>React.createElement('button',{key:n.id,className:`tab-btn ${tab===n.id?'active':''}`,onClick:()=>setTab(n.id)},React.createElement('span',{className:'tab-icon'},n.icon),n.label)))
+    ),
+    (showAdd||editFill)&&React.createElement(FillModal,{vehicleId:activeV,existing:editFill,onClose:()=>{setShowAdd(false);setEditFill(null);},onSave:saveFill}),
+    (showAddPart||editPart)&&React.createElement(PartModal,{vehicleId:activeV,existing:editPart,onClose:()=>{setShowAddPart(false);setEditPart(null);},onSave:savePart}),
+    (showAddService||editService)&&React.createElement(ServiceModal,{vehicleId:activeV,existing:editService,onClose:()=>{setShowAddService(false);setEditService(null);},onSave:saveService}),
+    showVehicleEdit&&React.createElement(VehicleModal,{existing:showVehicleEdit.vehicle,onClose:()=>setShowVehicleEdit(null),onSave:saveVehicle}),
+    confirm&&React.createElement(ConfirmDialog,{message:confirm.msg,onConfirm:()=>{confirm.cb();setConfirm(null);},onCancel:()=>setConfirm(null)}),
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>

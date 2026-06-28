@@ -60,8 +60,7 @@ body{overflow:hidden;}
 .content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
 @media(max-width:767px){.content{padding-bottom:calc(72px + var(--safe-bot));}}
 @media(min-width:768px){.status-bar{display:none;}.sidebar{display:flex;}.content{padding-bottom:28px;}}
-.tab-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(26,29,46,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);padding-bottom:var(--safe-bot);z-index:100;}
-.tab-bar-inner{display:flex;}
+.tab-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(26,29,46,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);padding-bottom:var(--safe-bot);z-index:100;}.tab-bar-inner{display:flex;}
 .tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 5px;background:none;border:none;color:var(--text-muted);font-size:9px;font-weight:500;cursor:pointer;transition:color .2s;}
 .tab-btn.active{color:var(--amber);}
 .tab-icon{font-size:19px;line-height:1;}
@@ -125,7 +124,7 @@ textarea.form-input{resize:vertical;min-height:80px;font-size:14px;}
 .empty-title{font-size:18px;font-weight:600;margin-bottom:8px;}
 .empty-desc{font-size:14px;color:var(--text-dim);line-height:1.5;}
 /* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:200;display:flex;align-items:flex-end;animation:fadeIn .2s;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:500;display:flex;align-items:flex-end;animation:fadeIn .2s;}
 .modal{background:var(--surface);width:100%;max-height:82vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 0 calc(24px + var(--safe-bot));animation:slideUp .25s ease;border-radius:20px 20px 0 0;display:flex;flex-direction:column;}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0;flex-shrink:0;}
 .modal-close-btn{width:32px;height:32px;border-radius:50%;border:none;background:var(--surface2);color:var(--text-dim);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -169,15 +168,30 @@ textarea.form-input{resize:vertical;min-height:80px;font-size:14px;}
 .type-toggle-btn{flex:1;padding:10px;border-radius:7px;border:none;background:none;color:var(--text-dim);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;}
 .type-toggle-btn.tuning.active{background:rgba(168,85,247,.2);color:var(--purple);}
 .type-toggle-btn.maintenance.active{background:rgba(249,115,22,.2);color:var(--orange);}
-/* SERVICE */
-.service-item{background:var(--surface);border-radius:var(--radius);padding:14px 16px;margin:0 20px 10px;border:1px solid var(--border);}
-.service-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;}
-.service-km{font-size:18px;font-weight:700;color:var(--teal);font-variant-numeric:tabular-nums;}
-.service-date{font-size:11px;color:var(--text-dim);margin-top:2px;}
-.service-checks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+/* SERVICE ALERT */
+.service-alert{margin:0 20px 12px;border-radius:var(--radius);padding:14px 16px;border:2px solid;animation:pulseAlert 2s ease-in-out infinite;}
+.service-alert.urgent{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.5);}
+.service-alert.warning{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.4);}
+.service-alert-title{font-size:15px;font-weight:700;margin-bottom:4px;}
+.service-alert-sub{font-size:12px;opacity:.8;line-height:1.5;}
+.service-progress-bar{height:6px;border-radius:3px;background:var(--border);margin-top:10px;overflow:hidden;}
+.service-progress-fill{height:100%;border-radius:3px;transition:width .5s ease;}
+@keyframes pulseAlert{0%,100%{opacity:1}50%{opacity:.85}}
+/* SERVICE COUNTDOWN */
+.service-next{background:rgba(20,184,166,.06);border:1px solid rgba(20,184,166,.2);border-radius:var(--radius);padding:14px 16px;margin:0 20px 12px;}
+.service-next-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;}
+.service-next-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.service-next-col{text-align:center;padding:10px 8px;background:var(--surface2);border-radius:10px;}
+.service-next-val{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;}
+.service-next-lbl{font-size:10px;color:var(--text-muted);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;}background:var(--surface);border-radius:var(--radius);padding:14px 16px;margin:0 20px 10px;border:1px solid var(--border);}
+.service-item{background:var(--surface);border-radius:var(--radius);padding:16px;margin:0 20px 10px;border:1px solid var(--border);outline:1px solid var(--border);box-shadow:0 0 0 1px var(--border),0 4px 16px rgba(0,0,0,.25);}
+.service-header{display:flex;flex-direction:row;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;width:100%;}
+.service-km{font-size:22px;font-weight:700;color:var(--teal);font-variant-numeric:tabular-nums;line-height:1.2;}
+.service-date{font-size:11px;color:var(--text-dim);margin-top:3px;}
+.service-checks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
 .check-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
 .check-done{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);}
-.service-note{font-size:12px;color:var(--text-dim);margin-top:6px;padding-top:8px;border-top:1px solid var(--border);line-height:1.5;}
+.service-note{font-size:12px;color:var(--text-dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);line-height:1.6;}
 .checklist{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;}
 .check-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .15s;user-select:none;}
 .check-item.checked{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);}
@@ -291,8 +305,8 @@ const applyTheme=(themeId,accentId,textureId)=>{
 const KEY='carbutrack_v6';
 const defState=()=>({
   vehicles:[
-    {id:'v1',name:'M135i',iconId:'m135i',purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null},
-    {id:'v2',name:'S1000R',iconId:'s1000r',purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null}
+    {id:'v1',name:'M135i',iconId:'m135i',purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null},
+    {id:'v2',name:'S1000R',iconId:'s1000r',purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null}
   ],
   fills:[],  // +station field
   parts:[],  // +isMaintenance field
@@ -308,7 +322,7 @@ const loadData=()=>{
     const d=JSON.parse(raw);
     if(!d.services)d.services=[];
     if(!d.parts)d.parts=[];
-    d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,...v}));
+    d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null,...v}));
     d.fills=d.fills.map(f=>({station:null,...f}));
     d.parts=d.parts.map(p=>({isMaintenance:false,...p}));
     return d;
@@ -801,7 +815,9 @@ function VehicleModal({existing,onClose,onSave}){
   const [ek,setEK]=useState(existing?.extraKm!=null&&existing.extraKm!==0?existing.extraKm:'');
   const [ip,setIP]=useState(existing?.insurancePrice!=null?existing.insurancePrice:'');
   const [is_,setIS]=useState(existing?.insuranceSince||'');
-  const save=()=>{if(!name.trim()){alert('Donnez un nom.');return;}onSave({id:existing?.id||uid(),name:name.trim(),iconId,purchasePrice:pp!==''?+pp:null,purchaseKm:pk!==''?+pk:null,extraKm:ek!==''?+ek:0,insurancePrice:ip!==''?+ip:null,insuranceSince:is_||null});onClose();};
+  const [sKm,setSKm]=useState(existing?.serviceIntervalKm!=null?existing.serviceIntervalKm:'');
+  const [sMo,setSMo]=useState(existing?.serviceIntervalMonths!=null?existing.serviceIntervalMonths:'');
+  const save=()=>{if(!name.trim()){alert('Donnez un nom.');return;}onSave({id:existing?.id||uid(),name:name.trim(),iconId,purchasePrice:pp!==''?+pp:null,purchaseKm:pk!==''?+pk:null,extraKm:ek!==''?+ek:0,insurancePrice:ip!==''?+ip:null,insuranceSince:is_||null,serviceIntervalKm:sKm!==''?+sKm:null,serviceIntervalMonths:sMo!==''?+sMo:null});onClose();};
   return React.createElement(Modal,{title:existing?'✏️ Modifier le véhicule':'🚗 Nouveau véhicule',onClose},
     React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Nom *'),React.createElement('input',{type:'text',className:'form-input',placeholder:'BMW M135i…',value:name,onChange:e=>setName(e.target.value)})),
     React.createElement('div',{className:'form-section'},
@@ -817,6 +833,21 @@ function VehicleModal({existing,onClose,onSave}){
         React.createElement('div',null,React.createElement('label',{className:'form-label'},'Assurance (CHF/an)'),React.createElement('input',{type:'number',inputMode:'decimal',className:'form-input',placeholder:'1 200',value:ip,onChange:e=>setIP(e.target.value)})),
         React.createElement('div',null,React.createElement('label',{className:'form-label'},'Depuis le'),React.createElement('input',{type:'date',className:'form-input',value:is_,onChange:e=>setIS(e.target.value)})),
       )
+    ),
+    // Service intervals
+    React.createElement('div',{className:'form-section'},
+      React.createElement('label',{className:'form-label'},'🛠 Intervalles de service'),
+      React.createElement('div',{className:'form-row'},
+        React.createElement('div',null,
+          React.createElement('label',{className:'form-label'},'Tous les (km)'),
+          React.createElement('input',{type:'number',inputMode:'numeric',className:'form-input',placeholder:'ex: 15 000',value:sKm,onChange:e=>setSKm(e.target.value)})
+        ),
+        React.createElement('div',null,
+          React.createElement('label',{className:'form-label'},'Ou tous les (mois)'),
+          React.createElement('input',{type:'number',inputMode:'numeric',className:'form-input',placeholder:'ex: 12',value:sMo,onChange:e=>setSMo(e.target.value)})
+        ),
+      ),
+      React.createElement('div',{style:{fontSize:11,color:'var(--text-muted)',marginTop:5}},'Alerte à 1 000 km ou 1 mois avant l\'échéance.')
     ),
     React.createElement('div',{className:'form-section'},
       React.createElement('label',{className:'form-label'},'Icône'),
@@ -891,7 +922,7 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
       React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
         React.createElement('button',{style:{width:'100%',padding:12,background:'rgba(16,185,129,.1)',color:'var(--green)',border:'1px solid rgba(16,185,129,.3)',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'},onClick:exportData},'📤 Exporter (JSON)'),
         React.createElement('div',null,
-          React.createElement('input',{type:'file',accept:'.json',ref:importRef,style:{display:'none'},onChange:e=>{if(e.target.files[0]){const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.vehicles&&d.fills){if(!d.parts)d.parts=[];if(!d.services)d.services=[];d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,...v}));d.fills=d.fills.map(f=>({station:null,...f}));d.parts=d.parts.map(p=>({isMaintenance:false,...p}));setData(d);alert('Données importées !');}else alert('Fichier invalide.');}catch{alert('Erreur.');}};r.readAsText(e.target.files[0]);}}}),
+          React.createElement('input',{type:'file',accept:'.json',ref:importRef,style:{display:'none'},onChange:e=>{if(e.target.files[0]){const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.vehicles&&d.fills){if(!d.parts)d.parts=[];if(!d.services)d.services=[];d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null,...v}));d.fills=d.fills.map(f=>({station:null,...f}));d.parts=d.parts.map(p=>({isMaintenance:false,...p}));setData(d);alert('Données importées !');}else alert('Fichier invalide.');}catch{alert('Erreur.');}};r.readAsText(e.target.files[0]);}}}),
           React.createElement('button',{style:{width:'100%',padding:12,background:'rgba(59,130,246,.1)',color:'var(--blue)',border:'1px solid rgba(59,130,246,.3)',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'},onClick:()=>importRef.current.click()},'📥 Importer (JSON)')
         ),
         React.createElement('button',{className:'btn-danger',style:{width:'100%',padding:12},onClick:()=>setConfirm({msg:'Supprimer TOUTES les données ?',cb:()=>setData(defState())})},'🗑 Effacer toutes les données')
@@ -910,39 +941,39 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
     ),
 
         openPanel==='theme'&&React.createElement(Modal,{title:'🌑 Choisir un thème',onClose:()=>setOpenPanel(null)},
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,padding:'0 20px 8px'}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,padding:'4px 16px 16px'}},
         Object.entries(THEMES).map(([id,t])=>React.createElement('div',{key:id,onClick:()=>pickTheme(id),style:{cursor:'pointer',borderRadius:12,overflow:'hidden',border:`2px solid ${themeId===id?'var(--amber)':'var(--border)'}`,transition:'border-color .2s'}},
           React.createElement('div',{style:{background:t.bg,padding:'10px 8px 6px'}},
-            React.createElement('div',{style:{background:t.surface,borderRadius:6,padding:'5px 6px',marginBottom:5}},
+            React.createElement('div',{style:{background:t.surface,borderRadius:6,padding:'6px 7px',marginBottom:5}},
               React.createElement('div',{style:{width:'60%',height:5,background:t.accent,borderRadius:2,marginBottom:3}}),
               React.createElement('div',{style:{width:'80%',height:3,background:t.textMuted,borderRadius:2}}),
             ),
-            React.createElement('div',{style:{display:'flex',gap:3}},
-              [t.accent,t.surface2,t.textMuted].map((c,i)=>React.createElement('div',{key:i,style:{flex:1,height:16,background:c,borderRadius:3}}))
+            React.createElement('div',{style:{display:'flex',gap:3,marginBottom:2}},
+              [t.accent,t.surface2,t.textMuted].map((c,i)=>React.createElement('div',{key:i,style:{flex:1,height:14,background:c,borderRadius:3}}))
             ),
           ),
           React.createElement('div',{style:{background:t.surface,padding:'5px 6px 7px',textAlign:'center'}},
-            React.createElement('div',{style:{fontSize:11,fontWeight:700,color:themeId===id?t.accent:t.textDim}},t.emoji+' '+t.label)
+            React.createElement('div',{style:{fontSize:10,fontWeight:700,color:themeId===id?t.accent:t.textDim}},t.emoji+' '+t.label)
           )
         ))
       )
     ),
 
     openPanel==='accent'&&React.createElement(Modal,{title:'✨ Couleur d\'accentuation',onClose:()=>setOpenPanel(null)},
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,padding:'8px 20px 16px'}},
-        ACCENT_COLORS.map(a=>React.createElement('div',{key:a.id,onClick:()=>pickAccent(a.id),style:{display:'flex',flexDirection:'column',alignItems:'center',gap:8,cursor:'pointer'}},
-          React.createElement('div',{style:{width:48,height:48,borderRadius:'50%',background:a.color,border:`3px solid ${accentId===a.id?'var(--text)':'transparent'}`,boxShadow:accentId===a.id?`0 0 0 2px var(--bg), 0 0 0 4px ${a.color}`:'none',transition:'all .2s'}}),
-          React.createElement('div',{style:{fontSize:11,fontWeight:600,color:accentId===a.id?'var(--amber)':'var(--text-muted)',textAlign:'center'}},a.label)
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,padding:'8px 20px 16px'}},
+        ACCENT_COLORS.map(a=>React.createElement('div',{key:a.id,onClick:()=>pickAccent(a.id),style:{display:'flex',flexDirection:'column',alignItems:'center',gap:6,cursor:'pointer'}},
+          React.createElement('div',{style:{width:44,height:44,borderRadius:'50%',background:a.color,border:`3px solid ${accentId===a.id?'var(--text)':'transparent'}`,boxShadow:accentId===a.id?`0 0 0 2px var(--bg), 0 0 0 4px ${a.color}`:'none',transition:'all .2s'}}),
+          React.createElement('div',{style:{fontSize:10,fontWeight:600,color:accentId===a.id?'var(--amber)':'var(--text-muted)',textAlign:'center'}},a.label)
         ))
       )
     ),
 
     openPanel==='texture'&&React.createElement(Modal,{title:'🪄 Texture de fond',onClose:()=>setOpenPanel(null)},
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,padding:'8px 20px 16px'}},
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,padding:'8px 16px 16px'}},
         Object.entries(TEXTURES).map(([id,tx])=>{
           const sel=textureId===id;
           return React.createElement('div',{key:id,onClick:()=>pickTexture(id),style:{cursor:'pointer',borderRadius:12,border:`2px solid ${sel?'var(--amber)':'var(--border)'}`,overflow:'hidden',transition:'border-color .2s'}},
-            React.createElement('div',{style:{height:56,background:'var(--bg)',backgroundImage:tx.css==='none'?'none':tx.css,backgroundSize:tx.size||'auto'}}),
+            React.createElement('div',{style:{height:52,background:'var(--bg)',backgroundImage:tx.css==='none'?'none':tx.css,backgroundSize:tx.size||'auto'}}),
             React.createElement('div',{style:{background:'var(--surface)',padding:'6px 10px 8px',display:'flex',alignItems:'center',gap:6}},
               React.createElement('div',{style:{fontSize:14}},tx.emoji),
               React.createElement('div',{style:{fontSize:12,fontWeight:700,color:sel?'var(--amber)':'var(--text-dim)'}},tx.label)
@@ -1031,6 +1062,23 @@ function App(){
     // station donut data
     const stationEntries=stats?Object.entries(stats.stationMap||{}).filter(([,v])=>v>0):[];
     const stationColors=stationEntries.map(([id])=>STATIONS[id]?.bg||'#475569');
+    // ── Extra km fuel estimation ──
+    const extraKmEstim=(()=>{
+      const extraKm=(vehicle?.extraKm||0);
+      if(!extraKm||!stats) return null;
+      // avg consumption L/100km
+      const avgL100=stats.avgL100;
+      if(!avgL100) return null;
+      // avg price per liter
+      const avgPricePerL=vFills.length>0
+        ?+(vFills.reduce((a,f)=>a+f.pricePerL,0)/vFills.length).toFixed(3)
+        :null;
+      if(!avgPricePerL) return null;
+      const liters=+(extraKm*avgL100/100).toFixed(1);
+      const cost=+(liters*avgPricePerL).toFixed(2);
+      return{extraKm,liters,cost,avgL100,avgPricePerL};
+    })();
+
     // ── Insurance cost calculation ──
     const insurancePaidToday=()=>{
       if(!vehicle?.insurancePrice||!vehicle?.insuranceSince) return null;
@@ -1070,6 +1118,29 @@ function App(){
           React.createElement('div',{className:'stat-card'},React.createElement('div',{className:'stat-value'},stats.totalKm),React.createElement('div',{className:'stat-label'},'Km parcourus')),
           React.createElement('div',{className:'stat-card'},React.createElement('div',{className:'stat-value'},stats.totalL),React.createElement('div',{className:'stat-label'},'Litres consommés')),
           React.createElement('div',{className:'stat-card'},React.createElement('div',{className:'stat-value',style:{color:stats.avgL100>8?'var(--red)':stats.avgL100>6?'var(--amber)':'var(--green)'}},stats.avgL100||'–'),React.createElement('div',{className:'stat-label'},'L/100 km')),
+        ),
+
+        // ── ESTIMATION KM AVANT CARBUTRACK ──
+        extraKmEstim&&React.createElement('div',{style:{margin:'0 20px 12px',borderRadius:14,border:'1px solid rgba(59,130,246,.25)',background:'rgba(59,130,246,.06)',padding:'14px 16px'}},
+          React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.6px',marginBottom:10}},'🔍 Estimation essence avant CarbuTrack'),
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:0}},
+            React.createElement('div',{style:{textAlign:'center',padding:'6px 4px',borderRight:'1px solid var(--border)'}},
+              React.createElement('div',{style:{fontSize:16,fontWeight:700,color:'var(--blue)',fontVariantNumeric:'tabular-nums'}},`${extraKmEstim.extraKm.toLocaleString('fr-CH')}`),
+              React.createElement('div',{style:{fontSize:9,color:'var(--text-muted)',marginTop:2,fontWeight:600,textTransform:'uppercase',letterSpacing:'.4px'}},'🛣 Km estimés')
+            ),
+            React.createElement('div',{style:{textAlign:'center',padding:'6px 4px',borderRight:'1px solid var(--border)'}},
+              React.createElement('div',{style:{fontSize:16,fontWeight:700,color:'var(--blue)',fontVariantNumeric:'tabular-nums'}},`${extraKmEstim.liters}`),
+              React.createElement('div',{style:{fontSize:9,color:'var(--text-muted)',marginTop:2,fontWeight:600,textTransform:'uppercase',letterSpacing:'.4px'}},'⛽ Litres estimés')
+            ),
+            React.createElement('div',{style:{textAlign:'center',padding:'6px 4px'}},
+              React.createElement('div',{style:{fontSize:16,fontWeight:700,color:'var(--blue)',fontVariantNumeric:'tabular-nums'}},`${extraKmEstim.cost}`),
+              React.createElement('div',{style:{fontSize:9,color:'var(--text-muted)',marginTop:2,fontWeight:600,textTransform:'uppercase',letterSpacing:'.4px'}},'💰 CHF estimés')
+            ),
+          ),
+          React.createElement('div',{style:{marginTop:10,paddingTop:8,borderTop:'1px solid var(--border)',fontSize:11,color:'var(--text-muted)',display:'flex',justifyContent:'space-between'}},
+            React.createElement('span',null,`Conso moy. ${extraKmEstim.avgL100} L/100 km`),
+            React.createElement('span',null,`Prix moy. ${extraKmEstim.avgPricePerL.toFixed(3)} CHF/L`)
+          )
         ),
 
         // ── MEGA BANNER ──
@@ -1289,26 +1360,148 @@ function App(){
     );
   };
 
+  // ── SERVICE STATUS CALCULATOR ─────────────────────────────────────────────
+  const calcServiceStatus=(veh,svcs,fills)=>{
+    if(!veh?.serviceIntervalKm&&!veh?.serviceIntervalMonths) return null;
+    const sorted=[...svcs].sort((a,b)=>b.date.localeCompare(a.date));
+    const last=sorted[0]||null;
+    const today=new Date();
+    const trackedKm=fills.reduce((a,f)=>a+f.km,0);
+    const currentKm=(veh.purchaseKm||0)+(veh.extraKm||0)+trackedKm;
+    let kmStatus=null;
+    if(veh.serviceIntervalKm){
+      const base=last?last.km:(veh.purchaseKm||0);
+      const kmSinceLast=currentKm-base;
+      const kmRemaining=veh.serviceIntervalKm-kmSinceLast;
+      kmStatus={kmSinceLast,kmRemaining,nextKm:base+veh.serviceIntervalKm,pct:Math.min(1,kmSinceLast/veh.serviceIntervalKm)};
+    }
+    let moStatus=null;
+    if(veh.serviceIntervalMonths){
+      const lastDate=last?new Date(last.date):new Date();
+      const monthsSince=Math.floor((today-lastDate)/(1000*60*60*24*30.44));
+      const monthsRemaining=veh.serviceIntervalMonths-monthsSince;
+      const nextDate=new Date(lastDate);
+      nextDate.setMonth(nextDate.getMonth()+veh.serviceIntervalMonths);
+      moStatus={monthsSince,monthsRemaining,nextDate,pct:Math.min(1,monthsSince/veh.serviceIntervalMonths)};
+    }
+    const kmUrgent=kmStatus&&kmStatus.kmRemaining<=0;
+    const kmWarning=kmStatus&&kmStatus.kmRemaining>0&&kmStatus.kmRemaining<=1000;
+    const moUrgent=moStatus&&moStatus.monthsRemaining<=0;
+    const moWarning=moStatus&&moStatus.monthsRemaining>0&&moStatus.monthsRemaining<=1;
+    const isUrgent=kmUrgent||moUrgent;
+    const isWarning=!isUrgent&&(kmWarning||moWarning);
+    return{kmStatus,moStatus,isUrgent,isWarning,last};
+  };
+
   // ── SERVICE ───────────────────────────────────────────────────────────────
-  const Service=()=>React.createElement('div',{className:'page-wrap'},
-    React.createElement('div',{className:'page-header'},React.createElement('div',null,React.createElement('div',{className:'page-title'},'🛠️ Service'),React.createElement('div',{className:'page-subtitle'},`${vServices.length} service${vServices.length!==1?'s':''}`)),addBtn(()=>setShowAddService(true),'var(--teal)')),
-    React.createElement(VehicleBar),
-    vServices.length===0?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'🛠️'),React.createElement('div',{className:'empty-title'},'Aucun service'),React.createElement('div',{className:'empty-desc'},'Enregistrez vos révisions ici.')):
-    vServices.map(s=>{
-      const done=SERVICE_ITEMS.filter(i=>s.checks.includes(i.id));
-      return React.createElement('div',{key:s.id,className:'service-item'},
-        React.createElement('div',{className:'service-header'},
-          React.createElement('div',null,React.createElement('div',{className:'service-km'},`${s.km.toLocaleString('fr-CH')} km`),React.createElement('div',{className:'service-date'},fmtDate(s.date))),
-          React.createElement('div',{style:{display:'flex',gap:8,flexShrink:0}},
-            React.createElement('button',{className:'btn-edit',style:{fontSize:12},onClick:()=>setEditService(s)},'✏️'),
-            React.createElement('button',{className:'btn-danger',style:{fontSize:12},onClick:()=>setConfirm({msg:'Supprimer ce service ?',cb:()=>setData(d=>({...d,services:(d.services||[]).filter(x=>x.id!==s.id)}))})},  '🗑')
+  const Service=()=>{
+    const status=calcServiceStatus(vehicle,vServices,vFills);
+    const hasInterval=!!(vehicle?.serviceIntervalKm||vehicle?.serviceIntervalMonths);
+    const PBar=({pct,color})=>React.createElement('div',{style:{height:4,background:'var(--border)',borderRadius:2,marginTop:8,overflow:'hidden'}},
+      React.createElement('div',{style:{height:'100%',borderRadius:2,width:`${Math.min(100,pct*100).toFixed(1)}%`,background:color,transition:'width .5s'}})
+    );
+    return React.createElement('div',{className:'page-wrap'},
+      React.createElement('div',{className:'page-header'},
+        React.createElement('div',null,
+          React.createElement('div',{className:'page-title'},'🛠️ Service'),
+          React.createElement('div',{className:'page-subtitle'},`${vServices.length} service${vServices.length!==1?'s':''} enregistré${vServices.length!==1?'s':''}`)
+        ),
+        addBtn(()=>setShowAddService(true),'var(--teal)')
+      ),
+      React.createElement(VehicleBar),
+
+      // Alert banner
+      status&&(status.isUrgent||status.isWarning)&&React.createElement('div',{className:`service-alert ${status.isUrgent?'urgent':'warning'}`},
+        React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:12}},
+          React.createElement('div',{style:{fontSize:28,flexShrink:0}},status.isUrgent?'🚨':'⚠️'),
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{className:'service-alert-title',style:{color:status.isUrgent?'var(--red)':'var(--amber)'}},
+              status.isUrgent?'Service dépassé !':'Service bientôt dû'
+            ),
+            React.createElement('div',{className:'service-alert-sub',style:{color:status.isUrgent?'var(--red)':'var(--amber)'}},
+              [
+                status.kmStatus&&(status.kmStatus.kmRemaining<=0
+                  ?`Dépassé de ${Math.abs(Math.round(status.kmStatus.kmRemaining)).toLocaleString('fr-CH')} km`
+                  :`${Math.round(status.kmStatus.kmRemaining).toLocaleString('fr-CH')} km restants`),
+                status.moStatus&&(status.moStatus.monthsRemaining<=0
+                  ?`Dépassé de ${Math.abs(status.moStatus.monthsRemaining)} mois`
+                  :`${status.moStatus.monthsRemaining} mois restant${status.moStatus.monthsRemaining>1?'s':''}`)
+              ].filter(Boolean).join(' · ')
+            )
           )
         ),
-        done.length>0&&React.createElement('div',{className:'service-checks'},done.map(i=>React.createElement('span',{key:i.id,className:'check-badge check-done'},'✓ '+i.label))),
-        s.note&&React.createElement('div',{className:'service-note'},s.note)
-      );
-    })
-  );
+        status.kmStatus&&React.createElement('div',{className:'service-progress-bar'},
+          React.createElement('div',{className:'service-progress-fill',style:{width:`${Math.min(100,status.kmStatus.pct*100).toFixed(1)}%`,background:status.isUrgent?'var(--red)':'var(--amber)'}})
+        )
+      ),
+
+      // Countdown card
+      hasInterval&&React.createElement('div',{className:'service-next'},
+        React.createElement('div',{className:'service-next-title'},'📅 Prochain service'),
+        React.createElement('div',{className:'service-next-grid'},
+          status?.kmStatus
+            ?React.createElement('div',{className:'service-next-col'},
+                React.createElement('div',{className:'service-next-val',style:{color:status.kmStatus.kmRemaining<=0?'var(--red)':status.kmStatus.kmRemaining<=1000?'var(--amber)':'var(--green)'}},
+                  status.kmStatus.kmRemaining<=0?`−${Math.abs(Math.round(status.kmStatus.kmRemaining)).toLocaleString('fr-CH')}`:`${Math.round(status.kmStatus.kmRemaining).toLocaleString('fr-CH')}`
+                ),
+                React.createElement('div',{className:'service-next-lbl'},'km restants'),
+                React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:4}},`Prévu à ${status.kmStatus.nextKm.toLocaleString('fr-CH')} km`),
+                React.createElement(PBar,{pct:status.kmStatus.pct,color:status.kmStatus.kmRemaining<=0?'var(--red)':status.kmStatus.kmRemaining<=1000?'var(--amber)':'var(--green)'})
+              )
+            :vehicle?.serviceIntervalKm&&React.createElement('div',{className:'service-next-col'},
+                React.createElement('div',{className:'service-next-val',style:{color:'var(--text-muted)'}},'–'),
+                React.createElement('div',{className:'service-next-lbl'},'km restants')
+              ),
+          status?.moStatus
+            ?React.createElement('div',{className:'service-next-col'},
+                React.createElement('div',{className:'service-next-val',style:{color:status.moStatus.monthsRemaining<=0?'var(--red)':status.moStatus.monthsRemaining<=1?'var(--amber)':'var(--green)'}},
+                  status.moStatus.monthsRemaining<=0?`−${Math.abs(status.moStatus.monthsRemaining)}`:`${status.moStatus.monthsRemaining}`
+                ),
+                React.createElement('div',{className:'service-next-lbl'},'mois restants'),
+                React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:4}},`Prévu ${status.moStatus.nextDate.toLocaleDateString('fr-CH',{month:'short',year:'numeric'})}`),
+                React.createElement(PBar,{pct:status.moStatus.pct,color:status.moStatus.monthsRemaining<=0?'var(--red)':status.moStatus.monthsRemaining<=1?'var(--amber)':'var(--green)'})
+              )
+            :vehicle?.serviceIntervalMonths&&React.createElement('div',{className:'service-next-col'},
+                React.createElement('div',{className:'service-next-val',style:{color:'var(--text-muted)'}},'–'),
+                React.createElement('div',{className:'service-next-lbl'},'mois restants')
+              ),
+        ),
+        status?.last
+          ?React.createElement('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)',fontSize:12,color:'var(--text-dim)',display:'flex',justifyContent:'space-between'}},
+              React.createElement('span',null,`Dernier : ${fmtDate(status.last.date)}`),
+              React.createElement('span',null,`à ${status.last.km.toLocaleString('fr-CH')} km`)
+            )
+          :React.createElement('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)',fontSize:11,color:'var(--text-muted)',textAlign:'center'}},
+              '💡 Enregistrez votre premier service pour activer le compte à rebours'
+            )
+      ),
+
+      !hasInterval&&React.createElement('div',{style:{margin:'0 20px 12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'12px 16px',fontSize:12,color:'var(--text-dim)',textAlign:'center'}},
+        '⚙️ Définissez les intervalles dans ',
+        React.createElement('strong',{style:{color:'var(--amber)'}},'Réglages → ✏️ votre véhicule'),
+        ' pour activer les alertes.'
+      ),
+
+      // Service history list
+      React.createElement('div',{style:{padding:'4px 20px 8px',fontSize:12,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.7px'}},'📋 Historique des services'),
+      vServices.length===0
+        ?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'🛠️'),React.createElement('div',{className:'empty-title'},'Aucun service enregistré'),React.createElement('div',{className:'empty-desc'},'Appuyez sur + pour ajouter votre première révision.'))
+        :vServices.map(sv=>{
+          const done=SERVICE_ITEMS.filter(i=>sv.checks.includes(i.id));
+          return React.createElement('div',{key:sv.id,className:'service-item'},
+            React.createElement('div',{className:'service-header'},
+              React.createElement('div',null,React.createElement('div',{className:'service-km'},`${sv.km.toLocaleString('fr-CH')} km`),React.createElement('div',{className:'service-date'},fmtDate(sv.date))),
+              React.createElement('div',{style:{display:'flex',flexDirection:'row',gap:8,flexShrink:0,alignItems:'flex-start',marginTop:2}},
+                React.createElement('button',{onClick:()=>setEditService(sv),style:{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}},'✏️'),
+                React.createElement('button',{onClick:()=>setConfirm({msg:'Supprimer ce service ?',cb:()=>setData(d=>({...d,services:(d.services||[]).filter(x=>x.id!==sv.id)}))}),style:{background:'rgba(239,68,68,.1)',border:'1px solid rgba(239,68,68,.25)',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}},'🗑')
+              )
+            ),
+            done.length>0&&React.createElement('div',{className:'service-checks'},done.map(i=>React.createElement('span',{key:i.id,className:'check-badge check-done'},'✓ '+i.label))),
+            sv.note&&React.createElement('div',{className:'service-note'},sv.note)
+          );
+        })
+    );
+  };
 
   // ── CHARTS ────────────────────────────────────────────────────────────────
   const Charts=()=>{
@@ -1364,6 +1557,37 @@ function App(){
     (showAddPart||editPart)&&React.createElement(PartModal,{vehicleId:activeV,existing:editPart,onClose:()=>{setShowAddPart(false);setEditPart(null);},onSave:savePart}),
     (showAddService||editService)&&React.createElement(ServiceModal,{vehicleId:activeV,existing:editService,onClose:()=>{setShowAddService(false);setEditService(null);},onSave:saveService}),
     showVehicleEdit&&React.createElement(VehicleModal,{existing:showVehicleEdit.vehicle,onClose:()=>setShowVehicleEdit(null),onSave:saveVehicle}),
+    // Service alert popup
+    (()=>{
+      const allStatuses=data.vehicles.map(v=>({
+        v,
+        status:calcServiceStatus(v,
+          (data.services||[]).filter(s=>s.vehicleId===v.id),
+          data.fills.filter(f=>f.vehicleId===v.id)
+        )
+      })).filter(x=>x.status&&(x.status.isUrgent||x.status.isWarning));
+      return allStatuses.length>0&&React.createElement('div',{style:{position:'fixed',top:0,left:0,right:0,zIndex:400,padding:'var(--safe-top) 16px 0',pointerEvents:'none'}},
+        allStatuses.map(({v,status})=>React.createElement('div',{key:v.id,style:{
+          background:status.isUrgent?'rgba(239,68,68,.95)':'rgba(245,158,11,.95)',
+          color:'#fff',borderRadius:12,padding:'10px 14px',marginBottom:8,
+          display:'flex',alignItems:'center',gap:10,
+          boxShadow:'0 4px 20px rgba(0,0,0,.3)',pointerEvents:'auto',
+          cursor:'pointer'
+        },onClick:()=>setTab('service')},
+          React.createElement('span',{style:{fontSize:20}},status.isUrgent?'🚨':'⚠️'),
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{style:{fontWeight:700,fontSize:13}},`${v.name} — Service ${status.isUrgent?'dépassé':'bientôt dû'}`),
+            React.createElement('div',{style:{fontSize:11,opacity:.9}},
+              [
+                status.kmStatus&&(status.kmStatus.kmRemaining<=0?`−${Math.abs(Math.round(status.kmStatus.kmRemaining)).toLocaleString('fr-CH')} km`:`${Math.round(status.kmStatus.kmRemaining).toLocaleString('fr-CH')} km restants`),
+                status.moStatus&&(status.moStatus.monthsRemaining<=0?`−${Math.abs(status.moStatus.monthsRemaining)} mois`:`${status.moStatus.monthsRemaining} mois`)
+              ].filter(Boolean).join(' · ')
+            )
+          ),
+          React.createElement('span',{style:{fontSize:16,opacity:.8}},'›')
+        ))
+      );
+    })(),
     confirm&&React.createElement(ConfirmDialog,{message:confirm.msg,onConfirm:()=>{confirm.cb();setConfirm(null);},onCancel:()=>setConfirm(null)}),
     showExport&&React.createElement('div',{className:'modal-overlay',onClick:()=>setShowExport(false)},
       React.createElement('div',{className:'modal',onClick:e=>e.stopPropagation()},

@@ -305,13 +305,12 @@ const applyTheme=(themeId,accentId,textureId)=>{
 const KEY='carbutrack_v7';
 const defState=()=>({
   vehicles:[
-    {id:'v1',name:'M135i',iconId:'m135i',purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null},
-    {id:'v2',name:'S1000R',iconId:'s1000r',purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null}
+    {id:'v1',name:'Ma voiture',iconId:'car',purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null},
   ],
-  fills:[],  // +station field
-  parts:[],  // +isMaintenance field
+  fills:[],
+  parts:[],
   services:[],
-  gear:[]    // {id,date,name,price,category,note} — équipement non lié à un véhicule
+  gear:[]
 });
 const loadData=()=>{
   try{
@@ -488,15 +487,20 @@ const groupBy=(fills,period)=>{
   return Object.values(map).sort((a,b)=>a.key.localeCompare(b.key));
 };
 const groupByParts=(parts,period)=>{
+  const p=PERIODS.find(x=>x.id===period)||{days:30};
+  const today=new Date();
+  const filtered=p.days?parts.filter(pt=>{const d=new Date(pt.date);const cutoff=new Date();cutoff.setDate(cutoff.getDate()-p.days);return d>=cutoff;}):parts;
   const map={};
-  parts.forEach(p=>{
-    const d=new Date(p.date);let key;
-    if(period==='month')key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    else key=`${d.getFullYear()}`;
+  filtered.forEach(pt=>{
+    const d=new Date(pt.date);
+    let key;
+    if(p.days&&p.days<=30) key=d.toISOString().slice(0,10);
+    else if(p.days&&p.days<=90){const s=new Date(d);s.setDate(d.getDate()-d.getDay()+1);key=s.toISOString().slice(0,10);}
+    else key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     if(!map[key])map[key]={key,total:0,count:0};
-    map[key].total+=p.price;map[key].count++;
+    map[key].total+=pt.price;map[key].count++;
   });
-  return Object.values(map).sort((a,b)=>a.key.localeCompare(b.key)).slice(-12);
+  return Object.values(map).sort((a,b)=>a.key.localeCompare(b.key));
 };
 const fmtKey=(key,period)=>{
   const p=PERIODS.find(x=>x.id===period)||PERIODS[1];
@@ -703,12 +707,11 @@ function ConfirmDialog({message,onConfirm,onCancel}){
 // ── Modal wrapper ──────────────────────────────────────────────────────────
 function Modal({title,onClose,children}){
   const ref=useRef();
-  const contentRef=useRef();
   const handleOverlayClick=e=>{
     if(e.target===ref.current) onClose();
   };
   return React.createElement('div',{className:'modal-overlay',ref,onMouseDown:handleOverlayClick},
-    React.createElement('div',{className:'modal',ref:contentRef,onMouseDown:e=>e.stopPropagation()},
+    React.createElement('div',{className:'modal',onMouseDown:e=>e.stopPropagation()},
       React.createElement('div',{className:'modal-header'},
         React.createElement('div',{className:'modal-title'},title),
         React.createElement('button',{className:'modal-close-btn',type:'button',onClick:onClose},'✕')
@@ -744,7 +747,7 @@ function FillModal({vehicleId,existing,onClose,onSave}){
       )
     ),
     React.createElement('div',{className:'form-section'},React.createElement('div',{className:'form-row'},React.createElement('div',null,React.createElement('label',{className:'form-label'},'Prix CHF/L *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.001',className:'form-input',placeholder:'1.850',value:f.pricePerL,onChange:e=>set('pricePerL',e.target.value)})),React.createElement('div',null,React.createElement('label',{className:'form-label'},'Quantité L *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.01',className:'form-input',placeholder:'45.00',value:f.quantity,onChange:e=>set('quantity',e.target.value)})))),
-    React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Km parcourus *'),React.createElement('input',{type:'number',inputMode:'numeric',className:'form-input',placeholder:'ex: 450',value:f.km,onChange:e=>set('km',e.target.value)})),
+    React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Km parcourus *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.1',className:'form-input',placeholder:'ex: 450.5',value:f.km,onChange:e=>set('km',e.target.value)})),
     React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Note'),React.createElement('input',{type:'text',className:'form-input',placeholder:'Optionnel…',value:f.note,onChange:e=>set('note',e.target.value)})),
     (total||l100)&&React.createElement('div',{className:'modal-preview'},
       total&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#F59E0B'}},`${total} CHF`),React.createElement('div',{className:'preview-lbl'},'Total')),
@@ -1042,12 +1045,13 @@ function VehicleModal({existing,onClose,onSave}){
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────
-function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm}){
+function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm,setShowMonthlyReport}){
   const currentKm=v=>{const t=data.fills.filter(f=>f.vehicleId===v.id).reduce((a,f)=>a+f.km,0);return(v.purchaseKm||0)+(v.extraKm||0)+t;};
   const [themeId,setThemeId]=useState(()=>localStorage.getItem(THEME_KEY)||'dark');
   const [accentId,setAccentId]=useState(()=>localStorage.getItem(ACCENT_KEY)||'amber');
   const [textureId,setTextureId]=useState(()=>localStorage.getItem(TEXTURE_KEY)||'none');
   const [openPanel,setOpenPanel]=useState(null);
+  const [monthlyEnabled,setMonthlyEnabled]=useState(()=>localStorage.getItem('carbutrack_monthly_report')!=='off');
   const pickTheme=id=>{setThemeId(id);localStorage.setItem(THEME_KEY,id);applyTheme(id,accentId,textureId);};
   const pickAccent=id=>{setAccentId(id);localStorage.setItem(ACCENT_KEY,id);applyTheme(themeId,id,textureId);};
   const pickTexture=id=>{setTextureId(id);localStorage.setItem(TEXTURE_KEY,id);applyTheme(themeId,accentId,id);};
@@ -1114,9 +1118,94 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
     ),
 
     React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-title'},'🔔 Notifications'),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:14,fontWeight:600,color:'var(--text)'}},'Rapport mensuel'),
+          React.createElement('div',{style:{fontSize:12,color:'var(--text-dim)',marginTop:2}},'Résumé du mois précédent chaque 1er du mois')
+        ),
+        React.createElement('div',{
+          onClick:()=>{
+            const cur=localStorage.getItem('carbutrack_monthly_report')!=='off';
+            localStorage.setItem('carbutrack_monthly_report',cur?'off':'on');
+            setMonthlyEnabled(!cur);
+          },
+          style:{
+            width:50,height:28,borderRadius:14,
+            background:monthlyEnabled?'var(--green)':'var(--border)',
+            position:'relative',cursor:'pointer',transition:'background .2s',flexShrink:0
+          }
+        },
+          React.createElement('div',{style:{
+            width:22,height:22,borderRadius:'50%',background:'#fff',
+            position:'absolute',top:3,
+            left:monthlyEnabled?25:3,
+            transition:'left .2s',boxShadow:'0 1px 4px rgba(0,0,0,.3)'
+          }})
+        )
+      ),
+      monthlyEnabled&&React.createElement('button',{
+        type:'button',
+        style:{marginTop:12,padding:'8px 14px',background:'rgba(245,158,11,.1)',border:'1px solid rgba(245,158,11,.3)',borderRadius:8,color:'var(--amber)',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'},
+        onClick:()=>setShowMonthlyReport(true)
+      },'👁 Prévisualiser le rapport')
+    ),
+
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-title'},'📲 Partager l\'app'),
+      React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:12,padding:'4px 0'}},
+        React.createElement('div',{style:{fontSize:12,color:'var(--text-dim)',textAlign:'center'}},'Scannez ce QR code pour ouvrir CarbuTrack'),
+        // QR code généré en SVG (version simplifiée avec un lien direct)
+        React.createElement('div',{style:{background:'#fff',padding:12,borderRadius:12,display:'inline-block'}},
+          React.createElement('svg',{width:140,height:140,viewBox:'0 0 21 21'},
+            // Position detection patterns
+            // Top-left
+            React.createElement('rect',{x:0,y:0,width:7,height:7,fill:'#000'}),
+            React.createElement('rect',{x:1,y:1,width:5,height:5,fill:'#fff'}),
+            React.createElement('rect',{x:2,y:2,width:3,height:3,fill:'#000'}),
+            // Top-right
+            React.createElement('rect',{x:14,y:0,width:7,height:7,fill:'#000'}),
+            React.createElement('rect',{x:15,y:1,width:5,height:5,fill:'#fff'}),
+            React.createElement('rect',{x:16,y:2,width:3,height:3,fill:'#000'}),
+            // Bottom-left
+            React.createElement('rect',{x:0,y:14,width:7,height:7,fill:'#000'}),
+            React.createElement('rect',{x:1,y:15,width:5,height:5,fill:'#fff'}),
+            React.createElement('rect',{x:2,y:16,width:3,height:3,fill:'#000'}),
+            // Timing patterns
+            ...[8,10,12].map(i=>React.createElement('rect',{key:'th'+i,x:i,y:6,width:1,height:1,fill:i%2===0?'#000':'#fff'})),
+            ...[8,10,12].map(i=>React.createElement('rect',{key:'tv'+i,x:6,y:i,width:1,height:1,fill:i%2===0?'#000':'#fff'})),
+            // Data modules (encoding fmrodrigomf.github.io/carbutrack)
+            ...[
+              [8,0],[9,0],[10,0],[11,0],[12,0],[13,0],
+              [8,1],[11,1],[13,1],
+              [8,2],[9,2],[11,2],[12,2],[13,2],
+              [8,3],[10,3],[13,3],
+              [8,4],[9,4],[10,4],[11,4],[12,4],[13,4],
+              [7,7],[8,7],[9,7],[11,7],[12,7],[14,7],[15,7],[16,7],[17,7],[18,7],[20,7],
+              [7,8],[10,8],[12,8],[14,8],[17,8],[20,8],
+              [7,9],[8,9],[9,9],[10,9],[11,9],[13,9],[14,9],[16,9],[18,9],[20,9],
+              [7,10],[8,10],[11,10],[13,10],[15,10],[16,10],[17,10],[18,10],[19,10],
+              [7,11],[9,11],[10,11],[12,11],[14,11],[15,11],[17,11],[19,11],[20,11],
+              [7,12],[8,12],[9,12],[11,12],[13,12],[16,12],[18,12],[20,12],
+              [7,13],[10,13],[12,13],[13,13],[14,13],[15,13],[16,13],[17,13],[19,13],
+              [7,14],[8,14],[9,14],[11,14],[13,14],[15,14],[17,14],[18,14],[19,14],[20,14],
+              [14,15],[15,15],[16,15],[17,15],[19,15],[20,15],
+              [7,16],[8,16],[10,16],[11,16],[12,16],[14,16],[16,16],[18,16],[19,16],[20,16],
+              [7,17],[9,17],[11,17],[13,17],[15,17],[17,17],[19,17],
+              [7,18],[8,18],[10,18],[11,18],[12,18],[14,18],[16,18],[18,18],[20,18],
+              [7,19],[10,19],[13,19],[15,19],[17,19],[19,19],[20,19],
+              [8,20],[9,20],[10,20],[12,20],[14,20],[16,20],[17,20],[18,20],[20,20],
+            ].map(([x,y],i)=>React.createElement('rect',{key:'d'+i,x,y,width:1,height:1,fill:'#000'}))
+          )
+        ),
+        React.createElement('div',{style:{fontSize:11,color:'var(--text-muted)',fontWeight:600}},'fmrodrigomf.github.io/carbutrack')
+      )
+    ),
+
+    React.createElement('div',{className:'card'},
       React.createElement('div',{className:'card-title'},'\u00c0 propos'),
       React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)',lineHeight:1.8}},
-        'CarbuTrack v4.0',React.createElement('br'),
+        'CarbuTrack v5.0',React.createElement('br'),
         React.createElement('strong',{style:{color:'var(--text)'}},'\ud83d\udcf1 iPhone : '),
         'Safari \u2192 Partager \u2192 Sur l\'\u00e9cran d\'accueil',React.createElement('br'),
         React.createElement('strong',{style:{color:'var(--text)'}},'\ud83d\udcbb Windows : '),
@@ -1170,9 +1259,103 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
 }
 
 // ── APP ────────────────────────────────────────────────────────────────────
+// ── Monthly Report Modal ───────────────────────────────────────────────────
+function MonthlyReport({data,vehicleId,onClose}){
+  const now=new Date();
+  const prevMonth=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const MONTH_NAMES=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const monthLabel=MONTH_NAMES[prevMonth.getMonth()]+' '+prevMonth.getFullYear();
+  const monthKey=`${prevMonth.getFullYear()}-${String(prevMonth.getMonth()+1).padStart(2,'0')}`;
+
+  // Filter fills from previous month for active vehicle
+  const monthFills=data.fills.filter(f=>f.vehicleId===vehicleId&&f.date.startsWith(monthKey));
+  const monthParts=(data.parts||[]).filter(p=>p.vehicleId===vehicleId&&p.date.startsWith(monthKey));
+  const monthCleans=monthParts.filter(p=>p.partType==='cleaning');
+  const monthMaint=monthParts.filter(p=>p.partType==='maintenance');
+  const monthTuning=monthParts.filter(p=>p.partType==='tuning');
+
+  const totalFuel=+monthFills.reduce((a,f)=>a+f.pricePerL*f.quantity,0).toFixed(2);
+  const totalL=+monthFills.reduce((a,f)=>a+f.quantity,0).toFixed(1);
+  const totalKm=monthFills.reduce((a,f)=>a+f.km,0);
+  const avgL100=totalKm>0?+((totalL/totalKm)*100).toFixed(2):null;
+  const totalMaint=monthMaint.reduce((a,p)=>a+p.price,0);
+  const totalClean=monthCleans.reduce((a,p)=>a+p.price,0);
+  const totalTuning=monthTuning.reduce((a,p)=>a+p.price,0);
+  const grandTotal=+(totalFuel+totalMaint+totalClean+totalTuning).toFixed(2);
+
+  // Best fill
+  const bestFill=monthFills.length>0?[...monthFills].sort((a,b)=>a.pricePerL-b.pricePerL)[0]:null;
+  const vehicle=data.vehicles.find(v=>v.id===vehicleId);
+
+  const Row=({label,value,color='var(--text)'})=>React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)'}},
+    React.createElement('span',{style:{fontSize:13,color:'var(--text-dim)'}},label),
+    React.createElement('span',{style:{fontSize:14,fontWeight:700,color,fontVariantNumeric:'tabular-nums'}},value)
+  );
+
+  const dismiss=()=>{
+    const key=`${now.getFullYear()}-${now.getMonth()}`;
+    localStorage.setItem('carbutrack_report_seen',key);
+    onClose();
+  };
+
+  return React.createElement('div',{className:'modal-overlay',style:{alignItems:'center',justifyContent:'center',zIndex:600},onClick:dismiss},
+    React.createElement('div',{className:'modal',style:{maxWidth:480,borderRadius:18,padding:'0 0 24px'},onClick:e=>e.stopPropagation()},
+      React.createElement('div',{style:{background:'linear-gradient(135deg,rgba(245,158,11,.15),rgba(168,85,247,.1))',borderRadius:'18px 18px 0 0',padding:'20px 20px 16px'}},
+        React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.6px',marginBottom:4}},'📊 Rapport mensuel'),
+        React.createElement('div',{style:{fontSize:22,fontWeight:800,letterSpacing:'-.5px'}},monthLabel),
+        vehicle&&React.createElement('div',{style:{fontSize:12,color:'var(--text-dim)',marginTop:2}},vehicle.name)
+      ),
+      React.createElement('div',{style:{padding:'16px 20px 0'}},
+        monthFills.length===0
+          ?React.createElement('div',{style:{textAlign:'center',padding:'20px 0',color:'var(--text-dim)',fontSize:14}},'Aucun plein enregistré ce mois-ci.')
+          :React.createElement(React.Fragment,null,
+            // Fuel section
+            React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--amber)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'⛽ Carburant'),
+            React.createElement(Row,{label:`${monthFills.length} plein${monthFills.length>1?'s':''}`,value:`${totalFuel} CHF`,color:'var(--amber)'}),
+            React.createElement(Row,{label:'Litres consommés',value:`${totalL} L`}),
+            totalKm>0&&React.createElement(Row,{label:'Km parcourus',value:`${totalKm.toLocaleString('fr-CH')} km`}),
+            avgL100&&React.createElement(Row,{label:'Consommation moy.',value:`${avgL100} L/100 km`,color:avgL100>8?'var(--red)':avgL100>6?'var(--amber)':'var(--green)'}),
+            bestFill&&React.createElement(Row,{label:'Meilleur prix',value:bestFill.pricePerL.toFixed(3)+' CHF/L'+(bestFill.station?' ('+((STATIONS||{})[bestFill.station]?.label||'')+')':''),color:'var(--green)'}),
+
+            // Other costs
+            (totalMaint>0||totalClean>0||totalTuning>0)&&React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--purple)',textTransform:'uppercase',letterSpacing:'.5px',marginTop:12,marginBottom:4}},'🔧 Autres dépenses'),
+            totalTuning>0&&React.createElement(Row,{label:'Achat / pièces',value:`${totalTuning.toFixed(2)} CHF`,color:'var(--purple)'}),
+            totalMaint>0&&React.createElement(Row,{label:'Maintenance',value:`${totalMaint.toFixed(2)} CHF`,color:'var(--orange)'}),
+            totalClean>0&&React.createElement(Row,{label:'Nettoyage',value:`${totalClean.toFixed(2)} CHF`,color:'#06B6D4'}),
+
+            // Grand total
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0 0',marginTop:4}},
+              React.createElement('span',{style:{fontSize:14,fontWeight:700}},'Total du mois'),
+              React.createElement('span',{style:{fontSize:22,fontWeight:800,color:'var(--amber)',fontVariantNumeric:'tabular-nums'}},`${grandTotal} CHF`)
+            )
+          ),
+        React.createElement('button',{type:'button',className:'btn-primary',style:{marginTop:16},onClick:dismiss},'✓ Compris !')
+      )
+    )
+  );
+}
+
 function App(){
   const [data,setData]=useState(loadData);
+  const [showMonthlyReport,setShowMonthlyReport]=useState(false);
+
+  // ── Monthly report popup (1st of month, if enabled) ──
+  useEffect(()=>{
+    const enabled=localStorage.getItem('carbutrack_monthly_report')!=='off';
+    if(!enabled) return;
+    const lastSeen=localStorage.getItem('carbutrack_report_seen');
+    const now=new Date();
+    const key=`${now.getFullYear()}-${now.getMonth()}`; // current month key
+    if(lastSeen===key) return; // already shown this month
+    // Show on 1st of month OR first open of a new month
+    const today=now.getDate();
+    if(today<=3){ // show in first 3 days of month
+      setTimeout(()=>setShowMonthlyReport(true),1500); // slight delay for UX
+    }
+  },[]);
   const [tab,setTab]=useState('dashboard');
+  const contentRef=useRef();
+  const changeTab=t=>{setTab(t);setTimeout(()=>{if(contentRef.current)contentRef.current.scrollTop=0;},0);};
   const [activeV,setActiveV]=useState(()=>loadData().vehicles[0]?.id||'v1');
   const [period,setPeriod]=useState('30d');
   const [tuningPeriod,setTuningPeriod]=useState('30d');
@@ -1325,7 +1508,7 @@ function App(){
               React.createElement('div',{style:{fontSize:11,color:'var(--text-muted)',marginTop:2}},'Kilométrage actuel')
             ),
             svcStatus&&(svcStatus.isUrgent||svcStatus.isWarning)&&React.createElement('div',{
-              onClick:()=>setTab('service'),
+              onClick:()=>changeTab('service'),
               style:{background:svcStatus.isUrgent?'rgba(239,68,68,.15)':'rgba(245,158,11,.15)',border:'1px solid '+(svcStatus.isUrgent?'rgba(239,68,68,.4)':'rgba(245,158,11,.4)'),borderRadius:10,padding:'8px 10px',textAlign:'center',cursor:'pointer',flexShrink:0}
             },
               React.createElement('div',{style:{fontSize:20}},svcStatus.isUrgent?'🚨':'⚠️'),
@@ -1535,8 +1718,8 @@ function App(){
       vParts.length>1&&React.createElement('div',{className:'card'},
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
           React.createElement('div',{className:'card-title',style:{margin:0}},'Dépenses dans le temps'),
-          React.createElement('div',{style:{display:'flex',gap:6}},
-            ['month','year'].map(p=>React.createElement('button',{key:p,className:`period-btn ${tuningPeriod===p?'active':''}`,style:{padding:'4px 12px',fontSize:12},onClick:()=>setTuningPeriod(p)},p==='month'?'Mois':'Année'))
+          React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+            PERIODS.map(p=>React.createElement('button',{key:p.id,className:`period-btn ${tuningPeriod===p.id?'active':''}`,style:{padding:'4px 10px',fontSize:11},onClick:()=>setTuningPeriod(p.id)},p.label))
           )
         ),
         React.createElement('div',{style:{display:'flex',gap:14,marginBottom:10,flexWrap:'wrap'}},
@@ -1546,7 +1729,7 @@ function App(){
         ),
         React.createElement(BarChartStacked3,{dataA:cdTuningOnly,dataB:cdMaintOnly,dataC:cdCleanOnly,period:tuningPeriod,height:130}),
         lastT&&React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)'}},
-          React.createElement('div',{style:{fontSize:12,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.5px'}},`Total ${tuningPeriod==='month'?'ce mois':'cette année'}`),
+          React.createElement('div',{style:{fontSize:12,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.5px'}},(PERIODS.find(p=>p.id===tuningPeriod)||PERIODS[1]).label),
           React.createElement('span',{style:{fontSize:20,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#A855F7'}},`${lastT.total.toFixed(2)} CHF`)
         )
       ),
@@ -2014,7 +2197,59 @@ function App(){
           last&&lastL100&&React.createElement(TotalPill,{label:`Moyenne ${periodLabel}`,value:lastL100,color:'#A855F7',extra:'L/100 km'})
         ),
 
-        // ── 7. Comparaison véhicules ──
+        // ── 7. Prix moyen par station ──
+        (()=>{
+          const stFills=vFills.filter(f=>f.station);
+          if(stFills.length<2) return null;
+          const stMap={};
+          stFills.forEach(f=>{
+            if(!stMap[f.station])stMap[f.station]={id:f.station,prices:[],total:0,count:0};
+            stMap[f.station].prices.push(f.pricePerL);
+            stMap[f.station].total+=f.pricePerL;
+            stMap[f.station].count++;
+          });
+          const stData=Object.values(stMap).map(s=>({...s,avg:+(s.total/s.count).toFixed(3),min:Math.min(...s.prices).toFixed(3),max:Math.max(...s.prices).toFixed(3)})).sort((a,b)=>a.avg-b.avg);
+          const maxAvg=Math.max(...stData.map(s=>s.avg));
+          const minAvg=Math.min(...stData.map(s=>s.avg));
+          const globalAvg=+(stFills.reduce((a,f)=>a+f.pricePerL,0)/stFills.length).toFixed(3);
+          return React.createElement('div',{className:'card'},
+            React.createElement('div',{className:'card-title'},'🏪 Prix moyen par station'),
+            React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
+              stData.map(s=>{
+                const st=STATIONS[s.id]||STATIONS.autre;
+                const pct=(s.avg-minAvg)/(maxAvg-minAvg||1);
+                const isLowest=s.id===stData[0].id;
+                const barColor=isLowest?'var(--green)':s.avg>globalAvg?'var(--red)':'var(--amber)';
+                return React.createElement('div',{key:s.id},
+                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:5}},
+                    React.createElement(StationLogo,{id:s.id,size:28}),
+                    React.createElement('div',{style:{flex:1}},
+                      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:4}},
+                        React.createElement('span',{style:{fontSize:13,fontWeight:600}},st.label),
+                        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+                          React.createElement('span',{style:{fontSize:11,color:'var(--text-muted)'}},`min ${s.min} · max ${s.max}`),
+                          React.createElement('span',{style:{fontSize:15,fontWeight:700,color:barColor,fontVariantNumeric:'tabular-nums'}},`${s.avg} CHF/L`)
+                        )
+                      ),
+                      // Bar
+                      React.createElement('div',{style:{height:6,background:'var(--border)',borderRadius:3,overflow:'hidden'}},
+                        React.createElement('div',{style:{height:'100%',borderRadius:3,background:barColor,width:`${Math.max(10,(s.avg/maxAvg)*100).toFixed(1)}%`,transition:'width .5s'}})
+                      )
+                    ),
+                    isLowest&&React.createElement('span',{style:{fontSize:11,color:'var(--green)',fontWeight:700,flexShrink:0}},'✓ moins cher')
+                  ),
+                  React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginLeft:38}},`${s.count} plein${s.count>1?'s':', '} enregistré${s.count>1?'s':''}`)
+                );
+              })
+            ),
+            React.createElement('div',{style:{marginTop:12,paddingTop:10,borderTop:'1px solid var(--border)',display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--text-dim)'}},
+              React.createElement('span',null,'Moyenne globale'),
+              React.createElement('span',{style:{fontWeight:700,color:'var(--amber)',fontVariantNumeric:'tabular-nums'}},`${globalAvg} CHF/L`)
+            )
+          );
+        })(),
+
+        // ── 8. Comparaison véhicules ──
         allVehicles.length>1&&React.createElement('div',{className:'card'},
           React.createElement('div',{className:'card-title'},'⚖️ Comparaison véhicules'),
           React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:12}},
@@ -2071,26 +2306,27 @@ function App(){
     if(tab==='gear')return React.createElement(Gear);
     if(tab==='service')return React.createElement(Service);
     if(tab==='charts')return React.createElement(Charts);
-    return React.createElement(Settings,{data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm});
+    return React.createElement(Settings,{data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm,setShowMonthlyReport});
   };
 
   return React.createElement('div',{className:'app'},
     React.createElement('aside',{className:'sidebar'},
       React.createElement('div',{className:'sidebar-logo'},React.createElement('div',{className:'sidebar-logo-title'},'⛽ CarbuTrack'),React.createElement('div',{className:'sidebar-logo-sub'},'Carburant · Tuning · Service')),
-      React.createElement('nav',{className:'sidebar-nav'},navItems.map(n=>React.createElement('button',{key:n.id,className:`sidebar-btn ${tab===n.id?'active':''}`,onClick:()=>setTab(n.id)},React.createElement('span',{className:'s-icon'},n.icon),n.label))),
+      React.createElement('nav',{className:'sidebar-nav'},navItems.map(n=>React.createElement('button',{key:n.id,className:`sidebar-btn ${tab===n.id?'active':''}`,onClick:()=>changeTab(n.id)},React.createElement('span',{className:'s-icon'},n.icon),n.label))),
       React.createElement('div',{className:'sidebar-footer'},React.createElement('div',{className:'sidebar-footer-text'},'Données stockées localement.'))
     ),
     React.createElement('div',{className:'main'},
       React.createElement('div',{className:'status-bar'}),
-      React.createElement('div',{className:'content'},renderPage()),
+      React.createElement('div',{className:'content',ref:contentRef},renderPage()),
     ),
     React.createElement('div',{className:'tab-bar'},
-      React.createElement('div',{className:'tab-bar-inner'},navItems.map(n=>React.createElement('button',{key:n.id,className:`tab-btn ${tab===n.id?'active':''}`,onClick:()=>setTab(n.id)},React.createElement('span',{className:'tab-icon'},n.icon),n.label)))
+      React.createElement('div',{className:'tab-bar-inner'},navItems.map(n=>React.createElement('button',{key:n.id,className:`tab-btn ${tab===n.id?'active':''}`,onClick:()=>changeTab(n.id)},React.createElement('span',{className:'tab-icon'},n.icon),n.label)))
     ),
     (showAdd||editFill)&&React.createElement(FillModal,{vehicleId:activeV,existing:editFill,onClose:()=>{setShowAdd(false);setEditFill(null);},onSave:saveFill}),
     (showAddPart||editPart)&&React.createElement(PartModal,{vehicleId:activeV,existing:editPart,onClose:()=>{setShowAddPart(false);setEditPart(null);},onSave:savePart}),
     (showAddService||editService)&&React.createElement(ServiceModal,{vehicleId:activeV,existing:editService,onClose:()=>{setShowAddService(false);setEditService(null);},onSave:saveService}),
     showVehicleEdit&&React.createElement(VehicleModal,{existing:showVehicleEdit.vehicle,onClose:()=>setShowVehicleEdit(null),onSave:saveVehicle}),
+    showMonthlyReport&&React.createElement(MonthlyReport,{data,vehicleId:activeV,onClose:()=>setShowMonthlyReport(false)}),
     (showAddGear||editGear)&&React.createElement(GearModal,{existing:editGear,onClose:()=>{setShowAddGear(false);setEditGear(null);},onSave:saveGear}),
     // Service alert popup
     (()=>{

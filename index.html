@@ -90,6 +90,8 @@ body{overflow:hidden;}
 .fuel-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
 .fuel-sp95{background:rgba(59,130,246,.15);color:#60A5FA;}
 .fuel-sp98{background:rgba(245,158,11,.15);color:var(--amber);}
+.fuel-diesel{background:rgba(16,185,129,.15);color:#34D399;}
+.fuel-diesel\+{background:rgba(168,85,247,.15);color:#C084FC;}
 .fill-item{background:var(--surface);border-radius:var(--radius);padding:13px 16px;margin:0 20px 10px;border:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;}
 .fill-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden;}
 .fill-main{flex:1;min-width:0;}
@@ -213,6 +215,7 @@ textarea.form-input{resize:vertical;min-height:80px;font-size:14px;}
 .donut-legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-right:6px;}
 @media(min-width:768px){.content::-webkit-scrollbar{width:6px;}.content::-webkit-scrollbar-track{background:transparent;}.content::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideDown{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes slideUp{from{transform:translateY(50px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes scaleIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
 </style>
@@ -293,12 +296,36 @@ const applyTheme=(themeId,accentId,textureId)=>{
     overlay.style.backgroundSize=tx.size||'auto';
   }
 };
+const THEME_MODE_KEY='carbutrack_theme_mode'; // 'auto' | 'dark' | 'light'
+
+// Get effective theme respecting auto mode
+const getEffectiveTheme=()=>{
+  const mode=localStorage.getItem(THEME_MODE_KEY)||'auto';
+  if(mode==='auto'){
+    const prefersDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return prefersDark?'dark':'light';
+  }
+  return localStorage.getItem(THEME_KEY)||'dark';
+};
+
 // Apply saved theme on load
 (()=>{
-  const tid=localStorage.getItem(THEME_KEY)||'dark';
+  const tid=getEffectiveTheme();
   const aid=localStorage.getItem(ACCENT_KEY)||'amber';
   const txid=localStorage.getItem(TEXTURE_KEY)||'none';
   applyTheme(tid,aid,txid);
+  // Watch OS theme changes
+  if(window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{
+      const mode=localStorage.getItem(THEME_MODE_KEY)||'auto';
+      if(mode==='auto'){
+        const tid2=getEffectiveTheme();
+        const aid2=localStorage.getItem(ACCENT_KEY)||'amber';
+        const txid2=localStorage.getItem(TEXTURE_KEY)||'none';
+        applyTheme(tid2,aid2,txid2);
+      }
+    });
+  }
 })();
 
 // ── Storage ─────────────────────────────────────────────────────────────────
@@ -325,7 +352,7 @@ const loadData=()=>{
     if(!d.gear)d.gear=[];
     d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null,...v}));
     d.fills=d.fills.map(f=>({station:null,...f}));
-    d.parts=d.parts.map(p=>({isMaintenance:false,partType:p.isMaintenance?'maintenance':'tuning',cleaningType:null,...p}));
+    d.parts=d.parts.map(p=>({isMaintenance:false,partType:p.isMaintenance?'maintenance':'tuning',cleaningType:null,parkingType:null,...p}));
     return d;
   }catch{return defState();}
 };
@@ -334,18 +361,64 @@ const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 
 // ── Stations ───────────────────────────────────────────────────────────────
 const STATIONS={
-  shell:  {label:'Shell',   bg:'#DD1D21', text:'#fff',    abbr:'SH'},
-  migrol: {label:'Migrol',  bg:'#E8371B', text:'#fff',    abbr:'MI'},
-  tamoil: {label:'Tamoil',  bg:'#FFD700', text:'#000',    abbr:'TA'},
-  bp:     {label:'BP',      bg:'#009A44', text:'#FFD700', abbr:'BP'},
-  esso:   {label:'Esso',    bg:'#003DA5', text:'#EE0000', abbr:'ES'},
-  coop:   {label:'Coop',    bg:'#E2001A', text:'#fff',    abbr:'CO'},
-  autre:  {label:'Autre',   bg:'#475569', text:'#fff',    abbr:'?'},
+  shell:   {label:'Shell',     bg:'#DD1D21', text:'#fff',    abbr:'Shell'},
+  migrol:  {label:'Migrol',    bg:'#FF6B00', text:'#fff',    abbr:'migrol'},
+  tamoil:  {label:'Tamoil',    bg:'#E30613', text:'#FFD700', abbr:'tamoil'},
+  bp:      {label:'BP',        bg:'#007A33', text:'#FFD700', abbr:'bp'},
+  esso:    {label:'Esso',      bg:'#003087', text:'#EE0000', abbr:'esso'},
+  coop:    {label:'Coop',      bg:'#E2001A', text:'#fff',    abbr:'coop'},
+  leclerc: {label:'E.Leclerc', bg:'#003189', text:'#F7C700', abbr:'E·Lec'},
+  autre:   {label:'Autre',     bg:'#475569', text:'#fff',    abbr:'?'},
 };
 
 function StationLogo({id,size=36}){
   const s=STATIONS[id]||STATIONS.autre;
-  return React.createElement('div',{style:{width:size,height:size,borderRadius:8,background:s.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:size*.28,fontWeight:800,color:s.text,letterSpacing:'-.5px',flexShrink:0}},s.abbr);
+  const r=Math.max(4,size*.2);
+  const fs=size<=24?size*.28:size*.22;
+  // Render SVG-based logos for a more realistic look
+  if(id==='shell') return React.createElement('div',{style:{width:size,height:size,borderRadius:r,background:'#DD1D21',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}},
+    React.createElement('svg',{width:size*.75,height:size*.75,viewBox:'0 0 40 40'},
+      React.createElement('path',{d:'M20 2 L24 12 L35 12 L26 19 L29 30 L20 24 L11 30 L14 19 L5 12 L16 12 Z',fill:'#FFD700'}),
+    )
+  );
+  if(id==='bp') return React.createElement('div',{style:{width:size,height:size,borderRadius:r,background:'#FFFFFF',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #eee',overflow:'hidden'}},
+    React.createElement('svg',{width:size*.8,height:size*.8,viewBox:'0 0 40 40'},
+      React.createElement('circle',{cx:20,cy:20,r:18,fill:'#007A33'}),
+      React.createElement('circle',{cx:20,cy:20,r:10,fill:'#FFD700'}),
+      React.createElement('text',{x:20,y:25,textAnchor:'middle',fontSize:11,fontWeight:900,fill:'#007A33',fontFamily:'sans-serif'},'bp'),
+    )
+  );
+  if(id==='esso') return React.createElement('div',{style:{width:size,height:size,borderRadius:r,background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid #eee',overflow:'hidden'}},
+    React.createElement('svg',{width:size*.85,height:size*.85,viewBox:'0 0 60 30'},
+      React.createElement('rect',{x:0,y:0,width:60,height:30,fill:'#003087',rx:4}),
+      React.createElement('text',{x:30,y:22,textAnchor:'middle',fontSize:18,fontWeight:900,fill:'#EE0000',fontFamily:'serif',fontStyle:'italic'},'esso'),
+    )
+  );
+  if(id==='migrol') return React.createElement('div',{style:{width:size,height:size,borderRadius:r,background:'#FF6B00',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}},
+    React.createElement('svg',{width:size*.9,height:size*.9,viewBox:'0 0 60 30'},
+      React.createElement('text',{x:30,y:22,textAnchor:'middle',fontSize:13,fontWeight:900,fill:'#fff',fontFamily:'sans-serif'},'migrol'),
+    )
+  );
+  if(id==='tamoil') return React.createElement('div',{style:{width:size,height:size,borderRadius:r,background:'#E30613',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}},
+    React.createElement('svg',{width:size*.9,height:size*.9,viewBox:'0 0 60 40'},
+      React.createElement('rect',{x:5,y:2,width:50,height:16,fill:'#FFD700',rx:2}),
+      React.createElement('text',{x:30,y:14,textAnchor:'middle',fontSize:11,fontWeight:900,fill:'#E30613',fontFamily:'sans-serif'},'TAMOIL'),
+      React.createElement('text',{x:30,y:34,textAnchor:'middle',fontSize:10,fontWeight:700,fill:'#fff',fontFamily:'sans-serif'},'★★★'),
+    )
+  );
+  if(id==='coop') return React.createElement('div',{style:{width:size,height:size,borderRadius:r,background:'#E2001A',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}},
+    React.createElement('svg',{width:size*.85,height:size*.85,viewBox:'0 0 50 30'},
+      React.createElement('text',{x:25,y:22,textAnchor:'middle',fontSize:16,fontWeight:900,fill:'#fff',fontFamily:'sans-serif'},'coop'),
+    )
+  );
+  if(id==='leclerc') return React.createElement('div',{style:{width:size,height:size,borderRadius:r,background:'#003189',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}},
+    React.createElement('svg',{width:size*.9,height:size*.9,viewBox:'0 0 50 40'},
+      React.createElement('text',{x:25,y:17,textAnchor:'middle',fontSize:13,fontWeight:900,fill:'#F7C700',fontFamily:'sans-serif'},'E.'),
+      React.createElement('text',{x:25,y:32,textAnchor:'middle',fontSize:11,fontWeight:800,fill:'#fff',fontFamily:'sans-serif'},'LECLERC'),
+    )
+  );
+  // Default fallback
+  return React.createElement('div',{style:{width:size,height:size,borderRadius:r,background:s.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:fs,fontWeight:800,color:s.text,letterSpacing:'-.5px',flexShrink:0}},s.abbr);
 }
 
 // ── Service checklist ──────────────────────────────────────────────────────
@@ -381,6 +454,14 @@ const CLEANING_TYPES={
   wax:      {label:'Cire/Polish',      emoji:'🪞'},
   detailing:{label:'Detailing',        emoji:'🔍'},
   other:    {label:'Autre',            emoji:'🧴'},
+};
+const PARKING_TYPES={
+  parking:  {label:'Parking',          emoji:'🅿️'},
+  toll:     {label:'Péage autoroute',  emoji:'🛣️'},
+  vignette: {label:'Vignette',         emoji:'🏷️'},
+  zone:     {label:'Zone bleue',       emoji:'🔵'},
+  ferry:    {label:'Ferry/tunnel',     emoji:'⛴️'},
+  other:    {label:'Autre',            emoji:'📋'},
 };
 
 
@@ -433,12 +514,14 @@ const calcStats=fills=>{
   const tChf=fills.reduce((a,f)=>a+f.pricePerL*f.quantity,0);
   const s95=fills.filter(f=>f.fuelType==='SP95').reduce((a,f)=>a+f.quantity,0);
   const s98=fills.filter(f=>f.fuelType==='SP98').reduce((a,f)=>a+f.quantity,0);
+  const sDiesel=fills.filter(f=>f.fuelType==='Diesel').reduce((a,f)=>a+f.quantity,0);
+  const sDieselP=fills.filter(f=>f.fuelType==='Diesel+').reduce((a,f)=>a+f.quantity,0);
   const vk=fills.filter(f=>f.km>0);
   const avg=vk.length?+((vk.reduce((a,f)=>a+f.quantity,0)/vk.reduce((a,f)=>a+f.km,0))*100).toFixed(2):null;
   // stations
   const stationMap={};
   fills.forEach(f=>{if(f.station){stationMap[f.station]=(stationMap[f.station]||0)+f.quantity;}});
-  return{totalL:+tL.toFixed(1),totalKm:tKm,totalChf:+tChf.toFixed(2),sp95:+s95.toFixed(1),sp98:+s98.toFixed(1),avgL100:avg,count:fills.length,stationMap};
+  return{totalL:+tL.toFixed(1),totalKm:tKm,totalChf:+tChf.toFixed(2),sp95:+s95.toFixed(1),sp98:+s98.toFixed(1),diesel:+sDiesel.toFixed(1),dieselP:+sDieselP.toFixed(1),avgL100:avg,count:fills.length,stationMap};
 };
 const MONTHS=['Jan','Fév','Mar','Avr','Mai','Juin','Jul','Aoû','Sep','Oct','Nov','Déc'];
 const fmtDate=iso=>{try{return new Date(iso).toLocaleDateString('fr-CH',{day:'2-digit',month:'short',year:'numeric'});}catch{return iso;}};
@@ -722,9 +805,61 @@ function Modal({title,onClose,children}){
 }
 
 // ── Fill Modal ─────────────────────────────────────────────────────────────
-function FillModal({vehicleId,existing,onClose,onSave}){
+
+// ── Badges & Records ───────────────────────────────────────────────────────
+const BADGES=[
+  {id:'first_fill',    icon:'⛽', label:'Premier plein',        desc:'Enregistrez votre 1er plein',          check:(fills)=>fills.length>=1},
+  {id:'ten_fills',     icon:'🔟', label:'10 pleins',             desc:'10 pleins enregistrés',                check:(fills)=>fills.length>=10},
+  {id:'fifty_fills',   icon:'💯', label:'50 pleins',             desc:'50 pleins enregistrés',                check:(fills)=>fills.length>=50},
+  {id:'hundred_fills', icon:'🏆', label:'100 pleins',            desc:'100 pleins enregistrés',               check:(fills)=>fills.length>=100},
+  {id:'eco_driver',    icon:'🌱', label:'Éco-conducteur',        desc:'Conso moy. < 6 L/100 km',             check:(fills)=>{const vk=fills.filter(f=>f.km>0);const avg=vk.length?vk.reduce((a,f)=>a+f.quantity,0)/vk.reduce((a,f)=>a+f.km,0)*100:99;return avg<6;}},
+  {id:'cheap_fuel',    icon:'💰', label:'Chasseur de prix',      desc:'Plein à moins de 1.70 CHF/L',         check:(fills)=>fills.some(f=>f.pricePerL<1.70)},
+  {id:'big_spender',   icon:'💸', label:'Grand voyageur',        desc:'Plus de 1000 km en 1 mois',           check:(fills,parts,data)=>{const now=new Date();const key=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;return fills.filter(f=>f.date.startsWith(key)).reduce((a,f)=>a+f.km,0)>1000;}},
+  {id:'multi_vehicle', icon:'🚗', label:'Multi-véhicule',        desc:'2 véhicules ou plus',                  check:(fills,parts,data)=>data.vehicles.length>=2},
+  {id:'tuner',         icon:'🔧', label:'Tuner',                 desc:'5 pièces achat/tuning ajoutées',       check:(fills,parts)=>parts.filter(p=>(p.partType||'tuning')==='tuning').length>=5},
+  {id:'clean_freak',   icon:'🧽', label:'Propre en ordre',       desc:'5 nettoyages enregistrés',             check:(fills,parts)=>parts.filter(p=>p.partType==='cleaning').length>=5},
+  {id:'maintainer',    icon:'🛠', label:'Bon mécanicien',        desc:'3 maintenances enregistrées',          check:(fills,parts)=>parts.filter(p=>p.partType==='maintenance').length>=3},
+  {id:'gear_head',     icon:'🎒', label:'Bien équipé',           desc:'5 équipements ajoutés',                check:(fills,parts,data)=>(data.gear||[]).length>=5},
+  {id:'loyal_shell',   icon:'🐚', label:'Fidèle Shell',          desc:'10 pleins à la même station',         check:(fills)=>{const m={};fills.forEach(f=>{if(f.station)m[f.station]=(m[f.station]||0)+1;});return Object.values(m).some(v=>v>=10);}},
+  {id:'year_tracker',  icon:'📅', label:'Un an de suivi',        desc:'Données sur 12 mois',                  check:(fills)=>{if(!fills.length)return false;const oldest=new Date(fills[fills.length-1].date);return(new Date()-oldest)>365*24*3600*1000;}},
+];
+
+const calcBadges=(fills,parts,data)=>BADGES.map(b=>({...b,unlocked:b.check(fills,parts||[],data||{})}));
+
+const calcRecords=(fills)=>{
+  if(!fills.length) return null;
+  const byL100=fills.filter(f=>f.km>0).map(f=>({...f,l100:(f.quantity/f.km)*100}));
+  return{
+    bestPrice:fills.reduce((a,f)=>f.pricePerL<a.pricePerL?f:a),
+    worstPrice:fills.reduce((a,f)=>f.pricePerL>a.pricePerL?f:a),
+    bestConso:byL100.length?byL100.reduce((a,f)=>f.l100<a.l100?f:a):null,
+    worstConso:byL100.length?byL100.reduce((a,f)=>f.l100>a.l100?f:a):null,
+    biggestFill:fills.reduce((a,f)=>f.quantity>a.quantity?f:a),
+    mostExpensive:fills.reduce((a,f)=>(f.pricePerL*f.quantity)>(a.pricePerL*a.quantity)?f:a),
+  };
+};
+
+function FillModal({vehicleId,existing,onClose,onSave,allFills=[]}){
   const today=new Date().toISOString().slice(0,10);
-  const [f,setF]=useState(existing?{date:existing.date,pricePerL:existing.pricePerL,quantity:existing.quantity,fuelType:existing.fuelType,km:existing.km,note:existing.note||'',station:existing.station||null}:{date:today,pricePerL:'',quantity:'',fuelType:'SP95',km:'',note:'',station:null});
+  // Smart defaults: learn from past fills at each station
+  const getSmartDefaults=()=>{
+    if(!allFills.length) return{fuelType:'SP95',station:null};
+    // Most recent fill
+    const last=allFills[0];
+    return{fuelType:last.fuelType||'SP95',station:last.station||null};
+  };
+  const getPreferredFuelForStation=stationId=>{
+    if(!stationId||!allFills.length) return null;
+    const stFills=allFills.filter(f=>f.station===stationId);
+    if(!stFills.length) return null;
+    const counts={};
+    stFills.forEach(f=>{counts[f.fuelType]=(counts[f.fuelType]||0)+1;});
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+  };
+  const smartDef=getSmartDefaults();
+  const [f,setF]=useState(existing
+    ?{date:existing.date,pricePerL:existing.pricePerL,quantity:existing.quantity,fuelType:existing.fuelType,km:existing.km,note:existing.note||'',station:existing.station||null}
+    :{date:today,pricePerL:'',quantity:'',fuelType:smartDef.fuelType,km:'',note:'',station:smartDef.station});
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const total=f.pricePerL&&f.quantity?(+f.pricePerL * +f.quantity).toFixed(2):null;
   const l100=f.quantity&&f.km&&+f.km>0?((+f.quantity/+f.km)*100).toFixed(2):null;
@@ -732,14 +867,22 @@ function FillModal({vehicleId,existing,onClose,onSave}){
   const save=()=>{if(!f.date||!f.pricePerL||!f.quantity||!f.km){alert('Remplissez tous les champs.');return;}onSave({id:existing?.id||uid(),vehicleId,date:f.date,pricePerL:+f.pricePerL,quantity:+f.quantity,fuelType:f.fuelType,km:+f.km,note:f.note,station:f.station});onClose();};
   return React.createElement(Modal,{title:existing?'✏️ Modifier le plein':'⛽ Nouveau plein',onClose},
     React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Date *'),React.createElement('input',{type:'date',className:'form-input',value:f.date,onChange:e=>set('date',e.target.value)})),
-    React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Carburant'),React.createElement('div',{className:'fuel-type-toggle'},React.createElement('button',{className:`fuel-type-btn sp95 ${f.fuelType==='SP95'?'active':''}`,onClick:()=>set('fuelType','SP95')},'SP95'),React.createElement('button',{className:`fuel-type-btn sp98 ${f.fuelType==='SP98'?'active':''}`,onClick:()=>set('fuelType','SP98')},'SP98'))),
+    React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Carburant'),React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:6}},
+        ['SP95','SP98','Diesel','Diesel+'].map(ft=>React.createElement('button',{key:ft,type:'button',onClick:()=>set('fuelType',ft),style:{padding:'10px 4px',borderRadius:8,border:'2px solid '+(f.fuelType===ft?'currentColor':'var(--border)'),background:f.fuelType===ft?(ft==='SP95'?'rgba(59,130,246,.15)':ft==='SP98'?'rgba(245,158,11,.15)':ft==='Diesel'?'rgba(16,185,129,.15)':'rgba(168,85,247,.15)'):'none',color:ft==='SP95'?'#60A5FA':ft==='SP98'?'var(--amber)':ft==='Diesel'?'#34D399':'#C084FC',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all .15s'}},ft)))),
     // Station selector
     React.createElement('div',{className:'form-section'},
       React.createElement('label',{className:'form-label'},'Station'),
       React.createElement('div',{className:'station-grid'},
         Object.entries(STATIONS).map(([id,s])=>{
           const sel=f.station===id;
-          return React.createElement('div',{key:id,className:`station-opt ${sel?'selected':''}`,style:{borderColor:sel?s.bg:'var(--border)'},onClick:()=>set('station',sel?null:id)},
+          return React.createElement('div',{key:id,className:`station-opt ${sel?'selected':''}`,style:{borderColor:sel?s.bg:'var(--border)'},onClick:()=>{
+                const newStation=sel?null:id;
+                set('station',newStation);
+                if(newStation){
+                  const pref=getPreferredFuelForStation(newStation);
+                  if(pref) set('fuelType',pref);
+                }
+              }},
             React.createElement(StationLogo,{id,size:34}),
             React.createElement('span',{className:'station-opt-name'},s.label)
           );
@@ -774,8 +917,8 @@ function PartModal({vehicleId,existing,onClose,onSave}){
     ? (existing.partType || (existing.isMaintenance ? 'maintenance' : 'tuning'))
     : 'tuning';
   const [f,setF]=useState(existing
-    ?{date:existing.date,name:existing.name,price:existing.price,note:existing.note||'',partType:initType,cleaningType:existing.cleaningType||'quick'}
-    :{date:today,name:'',price:'',note:'',partType:'tuning',cleaningType:'quick'});
+    ?{date:existing.date,name:existing.name,price:existing.price,note:existing.note||'',partType:initType,cleaningType:existing.cleaningType||'quick',parkingType:existing.parkingType||'parking'}
+    :{date:today,name:'',price:'',note:'',partType:'tuning',cleaningType:'quick',parkingType:'parking'});
   const [checks,setChecks]=useState(initChecks);
   const [itemPrices,setItemPrices]=useState(initItemPrices);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -789,7 +932,8 @@ function PartModal({vehicleId,existing,onClose,onSave}){
   const pType=f.partType; // 'tuning' | 'maintenance' | 'cleaning'
   const isMaint=pType==='maintenance';
   const isClean=pType==='cleaning';
-  const accentColor=isMaint?'var(--orange)':isClean?'#06B6D4':'var(--purple)';
+  const isPark=pType==='parking';
+  const accentColor=isMaint?'var(--orange)':isClean?'#06B6D4':isPark?'#6366F1':'var(--purple)';
 
   const computedTotal=isMaint
     ? checks.reduce((sum,id)=>sum+(parseFloat(itemPrices[id])||0),0)
@@ -812,9 +956,14 @@ function PartModal({vehicleId,existing,onClose,onSave}){
       const ct=CLEANING_TYPES[f.cleaningType]||CLEANING_TYPES.quick;
       const finalName=f.name||ct.label;
       onSave({id:existing?.id||uid(),vehicleId,date:f.date,name:finalName,price:+f.price,note:f.note,isMaintenance:false,partType:'cleaning',checks:[],itemPrices:{},cleaningType:f.cleaningType});
+    } else if(isPark){
+      if(!f.price||+f.price<=0){alert('Indiquez un prix.');return;}
+      const pt=PARKING_TYPES[f.parkingType||'parking']||PARKING_TYPES.parking;
+      const finalName=f.name||pt.label;
+      onSave({id:existing?.id||uid(),vehicleId,date:f.date,name:finalName,price:+f.price,note:f.note,isMaintenance:false,partType:'parking',checks:[],itemPrices:{},cleaningType:null,parkingType:f.parkingType||'parking'});
     } else {
       if(!f.name||!f.price){alert('Remplissez tous les champs.');return;}
-      onSave({id:existing?.id||uid(),vehicleId,date:f.date,name:f.name,price:+f.price,note:f.note,isMaintenance:false,partType:'tuning',checks:[],itemPrices:{},cleaningType:null});
+      onSave({id:existing?.id||uid(),vehicleId,date:f.date,name:f.name,price:+f.price,note:f.note,isMaintenance:false,partType:'tuning',checks:[],itemPrices:{},cleaningType:null,parkingType:null});
     }
     onClose();
   };
@@ -829,6 +978,7 @@ function PartModal({vehicleId,existing,onClose,onSave}){
         React.createElement('button',{type:'button',onClick:()=>set('partType','tuning'),style:{padding:'9px 4px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',background:pType==='tuning'?'rgba(168,85,247,.2)':'none',color:pType==='tuning'?'var(--purple)':'var(--text-dim)'}},'🔧 Pièce'),
         React.createElement('button',{type:'button',onClick:()=>set('partType','maintenance'),style:{padding:'9px 4px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',background:pType==='maintenance'?'rgba(249,115,22,.2)':'none',color:pType==='maintenance'?'var(--orange)':'var(--text-dim)'}},'🛠 Maintenance'),
         React.createElement('button',{type:'button',onClick:()=>set('partType','cleaning'),style:{padding:'9px 4px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',background:pType==='cleaning'?'rgba(6,182,212,.2)':'none',color:pType==='cleaning'?'#06B6D4':'var(--text-dim)'}},'🧽 Nettoyage'),
+        React.createElement('button',{type:'button',onClick:()=>set('partType','parking'),style:{padding:'9px 4px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',background:pType==='parking'?'rgba(99,102,241,.2)':'none',color:pType==='parking'?'#6366F1':'var(--text-dim)'}},'🅿️ Parking'),
       )
     ),
     React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Date *'),React.createElement('input',{type:'date',className:'form-input',value:f.date,onChange:e=>set('date',e.target.value)})),
@@ -915,9 +1065,30 @@ function PartModal({vehicleId,existing,onClose,onSave}){
       ),
     ),
 
+    pType==='parking'&&React.createElement(React.Fragment,null,
+      React.createElement('div',{className:'form-section'},
+        React.createElement('label',{className:'form-label'},'Type'),
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}},
+          Object.entries(PARKING_TYPES).map(([id,c])=>React.createElement('div',{
+            key:id,onClick:()=>set('parkingType',id),
+            style:{padding:'8px 4px',borderRadius:10,border:`2px solid ${f.parkingType===id?'#6366F1':'var(--border)'}`,background:f.parkingType===id?'rgba(99,102,241,.15)':'var(--surface2)',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2,transition:'all .15s'}
+          },
+            React.createElement('span',{style:{fontSize:18}},c.emoji),
+            React.createElement('span',{style:{fontSize:8,fontWeight:600,color:f.parkingType===id?'#6366F1':'var(--text-dim)',whiteSpace:'nowrap',textAlign:'center'}},c.label)
+          ))
+        )
+      ),
+      React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Nom (optionnel)'),React.createElement('input',{type:'text',className:'form-input',placeholder:(PARKING_TYPES[f.parkingType]||PARKING_TYPES.parking).label,value:f.name,onChange:e=>set('name',e.target.value)})),
+      React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Prix CHF *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.01',className:'form-input',placeholder:'5.00',value:f.price,onChange:e=>set('price',e.target.value)})),
+      React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Note / lieu'),React.createElement('input',{type:'text',className:'form-input',placeholder:'Optionnel…',value:f.note,onChange:e=>set('note',e.target.value)})),
+      f.price&&React.createElement('div',{style:{margin:'0 20px 16px',background:'rgba(99,102,241,.08)',border:'1px solid rgba(99,102,241,.2)',borderRadius:12,padding:'12px 16px',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:20,fontWeight:700,color:'#6366F1',fontVariantNumeric:'tabular-nums'}},(+f.price).toFixed(2)+' CHF'),
+        React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)',marginTop:2}},((PARKING_TYPES[f.parkingType]||PARKING_TYPES.parking).emoji)+' '+((PARKING_TYPES[f.parkingType]||PARKING_TYPES.parking).label))
+      ),
+    ),
     React.createElement('div',{className:'form-section'},
       React.createElement('button',{type:'button',className:'btn-primary',style:{background:accentColor},onClick:save},
-        existing?'Enregistrer':isMaint?'🛠 Ajouter la maintenance':isClean?'🧽 Ajouter le nettoyage':'🔧 Ajouter la pièce'
+        existing?'Enregistrer':isMaint?'🛠 Ajouter la maintenance':isClean?'🧽 Ajouter le nettoyage':isPark?'🅿️ Ajouter':'🔧 Ajouter la pièce'
       )
     ),
   );
@@ -1045,13 +1216,14 @@ function VehicleModal({existing,onClose,onSave}){
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────
-function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm,setShowMonthlyReport}){
+function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm,setShowMonthlyReport,setShowManual,setShowBadges,setShowShare,activeV}){
   const currentKm=v=>{const t=data.fills.filter(f=>f.vehicleId===v.id).reduce((a,f)=>a+f.km,0);return(v.purchaseKm||0)+(v.extraKm||0)+t;};
   const [themeId,setThemeId]=useState(()=>localStorage.getItem(THEME_KEY)||'dark');
   const [accentId,setAccentId]=useState(()=>localStorage.getItem(ACCENT_KEY)||'amber');
   const [textureId,setTextureId]=useState(()=>localStorage.getItem(TEXTURE_KEY)||'none');
   const [openPanel,setOpenPanel]=useState(null);
   const [monthlyEnabled,setMonthlyEnabled]=useState(()=>localStorage.getItem('carbutrack_monthly_report')!=='off');
+  const [themeMode,setThemeMode]=useState(()=>localStorage.getItem(THEME_MODE_KEY)||'auto');
   const pickTheme=id=>{setThemeId(id);localStorage.setItem(THEME_KEY,id);applyTheme(id,accentId,textureId);};
   const pickAccent=id=>{setAccentId(id);localStorage.setItem(ACCENT_KEY,id);applyTheme(themeId,id,textureId);};
   const pickTexture=id=>{setTextureId(id);localStorage.setItem(TEXTURE_KEY,id);applyTheme(themeId,accentId,id);};
@@ -1100,6 +1272,30 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
 
     React.createElement('div',{className:'card'},
       React.createElement('div',{className:'card-title'},'🎨 Apparence'),
+      // Auto dark mode toggle
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'13px 0',borderTop:'1px solid var(--border)'}},
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:14}},
+          React.createElement('div',{style:{fontSize:22,width:32,textAlign:'center'}},'🌗'),
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontSize:15,fontWeight:600,color:'var(--text)'}},'Thème auto'),
+            React.createElement('div',{style:{fontSize:12,color:'var(--text-dim)',marginTop:2}},'Suit le mode jour/nuit de l\'appareil')
+          )
+        ),
+        React.createElement('div',{
+          onClick:()=>{
+            const newMode=themeMode==='auto'?'manual':'auto';
+            setThemeMode(newMode);
+            localStorage.setItem(THEME_MODE_KEY,newMode);
+            if(newMode==='auto'){
+              const autoTid=getEffectiveTheme();
+              pickTheme(autoTid);
+            }
+          },
+          style:{width:50,height:28,borderRadius:14,background:themeMode==='auto'?'var(--green)':'var(--border)',position:'relative',cursor:'pointer',transition:'background .2s',flexShrink:0}
+        },
+          React.createElement('div',{style:{width:22,height:22,borderRadius:'50%',background:'#fff',position:'absolute',top:3,left:themeMode==='auto'?25:3,transition:'left .2s',boxShadow:'0 1px 4px rgba(0,0,0,.3)'}})
+        )
+      ),
       React.createElement(DesignBtn,{icon:'🌑',label:'Thème',preview:curTheme.emoji+' '+curTheme.label,onClick:()=>setOpenPanel('theme')}),
       React.createElement(DesignBtn,{icon:'✨',label:'Couleur d\'accentuation',preview:React.createElement('span',{style:{display:'inline-flex',alignItems:'center',gap:6}},React.createElement('span',{style:{display:'inline-block',width:12,height:12,borderRadius:'50%',background:curAccent.color}}),curAccent.label),onClick:()=>setOpenPanel('accent')}),
       React.createElement(DesignBtn,{icon:'🪄',label:'Texture de fond',preview:curTexture.emoji+' '+curTexture.label,onClick:()=>setOpenPanel('texture')}),
@@ -1110,11 +1306,24 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
       React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
         React.createElement('button',{style:{width:'100%',padding:12,background:'rgba(16,185,129,.1)',color:'var(--green)',border:'1px solid rgba(16,185,129,.3)',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'},onClick:exportData},'📤 Exporter (JSON)'),
         React.createElement('div',null,
-          React.createElement('input',{type:'file',accept:'.json',ref:importRef,style:{display:'none'},onChange:e=>{if(e.target.files[0]){const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.vehicles&&d.fills){if(!d.parts)d.parts=[];if(!d.services)d.services=[];if(!d.gear)d.gear=[];d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null,...v}));d.fills=d.fills.map(f=>({station:null,...f}));d.parts=d.parts.map(p=>({isMaintenance:false,partType:p.isMaintenance?'maintenance':'tuning',cleaningType:null,...p}));setData(d);alert('Données importées !');}else alert('Fichier invalide.');}catch{alert('Erreur.');}};r.readAsText(e.target.files[0]);}}}),
+          React.createElement('input',{type:'file',accept:'.json',ref:importRef,style:{display:'none'},onChange:e=>{if(e.target.files[0]){const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.vehicles&&d.fills){if(!d.parts)d.parts=[];if(!d.services)d.services=[];if(!d.gear)d.gear=[];d.vehicles=d.vehicles.map(v=>({purchasePrice:null,purchaseKm:null,extraKm:0,insurancePrice:null,insuranceSince:null,serviceIntervalKm:null,serviceIntervalMonths:null,...v}));d.fills=d.fills.map(f=>({station:null,...f}));d.parts=d.parts.map(p=>({isMaintenance:false,partType:p.isMaintenance?'maintenance':'tuning',cleaningType:null,parkingType:null,...p}));setData(d);alert('Données importées !');}else alert('Fichier invalide.');}catch{alert('Erreur.');}};r.readAsText(e.target.files[0]);}}}),
           React.createElement('button',{style:{width:'100%',padding:12,background:'rgba(59,130,246,.1)',color:'var(--blue)',border:'1px solid rgba(59,130,246,.3)',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'},onClick:()=>importRef.current.click()},'📥 Importer (JSON)')
         ),
         React.createElement('button',{className:'btn-danger',style:{width:'100%',padding:12},onClick:()=>setConfirm({msg:'Supprimer TOUTES les données ?',cb:()=>setData(defState())})},'🗑 Effacer toutes les données')
       )
+    ),
+
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-title'},'📝 Bloc-notes'),
+      React.createElement('div',{style:{fontSize:12,color:'var(--text-dim)',marginBottom:8}},'Idées de mises à jour, notes personnelles…'),
+      React.createElement('textarea',{
+        className:'form-input',
+        placeholder:'Ex: Rajouter un graphique kilométrage... Changer la couleur du bouton...',
+        defaultValue:localStorage.getItem('carbutrack_notes')||'',
+        onChange:e=>localStorage.setItem('carbutrack_notes',e.target.value),
+        style:{minHeight:140,fontSize:13,lineHeight:1.6,resize:'vertical'}
+      }),
+      React.createElement('div',{style:{fontSize:11,color:'var(--text-muted)',marginTop:6,textAlign:'right'}},'Sauvegardé automatiquement')
     ),
 
     React.createElement('div',{className:'card'},
@@ -1203,13 +1412,20 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
     ),
 
     React.createElement('div',{className:'card'},
-      React.createElement('div',{className:'card-title'},'\u00c0 propos'),
-      React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)',lineHeight:1.8}},
+      React.createElement('div',{className:'card-title'},'À propos'),
+      React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)',lineHeight:1.8,marginBottom:14}},
         'CarbuTrack v5.0',React.createElement('br'),
-        React.createElement('strong',{style:{color:'var(--text)'}},'\ud83d\udcf1 iPhone : '),
-        'Safari \u2192 Partager \u2192 Sur l\'\u00e9cran d\'accueil',React.createElement('br'),
-        React.createElement('strong',{style:{color:'var(--text)'}},'\ud83d\udcbb Windows : '),
-        'Chrome/Edge \u2192 \u22ee \u2192 Installer',
+        React.createElement('strong',{style:{color:'var(--text)'}},'📱 iPhone : '),
+        'Safari → Partager → Sur l\'écran d\'accueil',React.createElement('br'),
+        React.createElement('strong',{style:{color:'var(--text)'}},'💻 Windows : '),
+        'Chrome/Edge → ⋮ → Installer',
+      ),
+      React.createElement('div',{style:{display:'flex',gap:10}},
+        React.createElement('button',{
+          type:'button',
+          style:{flex:1,padding:11,background:'rgba(245,158,11,.1)',border:'1px solid rgba(245,158,11,.3)',borderRadius:10,color:'var(--amber)',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6},
+          onClick:()=>setShowManual(true)
+        },'❓ Manuel d\'utilisation'),
       )
     ),
 
@@ -1259,6 +1475,625 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
 }
 
 // ── APP ────────────────────────────────────────────────────────────────────
+
+
+// ── Badges Modal ───────────────────────────────────────────────────────────
+function BadgesModal({data,vehicleId,onClose}){
+  const fills=(data.fills||[]).filter(f=>f.vehicleId===vehicleId);
+  const parts=(data.parts||[]).filter(p=>p.vehicleId===vehicleId);
+  const badges=calcBadges(fills,parts,data);
+  const unlocked=badges.filter(b=>b.unlocked).length;
+  const records=calcRecords(fills);
+  return React.createElement(Modal,{title:'🏆 Badges & Records',onClose},
+    React.createElement('div',{style:{padding:'0 20px 8px'}},
+      // Progress bar
+      React.createElement('div',{style:{marginBottom:16}},
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:6}},
+          React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'var(--text-dim)'}},'Progression'),
+          React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'var(--amber)'}},unlocked+' / '+badges.length)
+        ),
+        React.createElement('div',{style:{height:8,background:'var(--border)',borderRadius:4,overflow:'hidden'}},
+          React.createElement('div',{style:{height:'100%',borderRadius:4,background:'var(--amber)',width:(unlocked/badges.length*100).toFixed(1)+'%',transition:'width .6s'}})
+        )
+      ),
+      // Badges grid
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:20}},
+        badges.map(b=>React.createElement('div',{key:b.id,style:{
+          background:b.unlocked?'rgba(245,158,11,.1)':'var(--surface2)',
+          border:'1px solid '+(b.unlocked?'rgba(245,158,11,.3)':'var(--border)'),
+          borderRadius:12,padding:'12px 8px',textAlign:'center',
+          opacity:b.unlocked?1:0.45,transition:'all .2s'
+        }},
+          React.createElement('div',{style:{fontSize:28,marginBottom:4,filter:b.unlocked?'none':'grayscale(1)'}},b.icon),
+          React.createElement('div',{style:{fontSize:10,fontWeight:700,color:b.unlocked?'var(--amber)':'var(--text-muted)',lineHeight:1.3}},b.label),
+          !b.unlocked&&React.createElement('div',{style:{fontSize:9,color:'var(--text-muted)',marginTop:3,lineHeight:1.3}},b.desc)
+        ))
+      ),
+      // Records
+      records&&React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:10}},'📊 Records personnels'),
+        [
+          {l:'🟢 Meilleur prix',v:records.bestPrice.pricePerL.toFixed(3)+' CHF/L',sub:records.bestPrice.date,c:'var(--green)'},
+          {l:'🔴 Pire prix',v:records.worstPrice.pricePerL.toFixed(3)+' CHF/L',sub:records.worstPrice.date,c:'var(--red)'},
+          records.bestConso&&{l:'🟢 Meilleure conso',v:records.bestConso.l100.toFixed(2)+' L/100 km',sub:records.bestConso.date,c:'var(--green)'},
+          records.worstConso&&{l:'🔴 Pire conso',v:records.worstConso.l100.toFixed(2)+' L/100 km',sub:records.worstConso.date,c:'var(--red)'},
+          {l:'⛽ Plus gros plein',v:records.biggestFill.quantity.toFixed(1)+' L',sub:records.biggestFill.date,c:'var(--blue)'},
+          {l:'💸 Plein le + cher',v:(records.mostExpensive.pricePerL*records.mostExpensive.quantity).toFixed(2)+' CHF',sub:records.mostExpensive.date,c:'var(--orange)'},
+        ].filter(Boolean).map((r,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)'}},r.l),
+            React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:1}},r.sub)
+          ),
+          React.createElement('div',{style:{fontSize:15,fontWeight:700,color:r.c,fontVariantNumeric:'tabular-nums'}},r.v)
+        ))
+      )
+    )
+  );
+}
+
+
+// ── Share Report ───────────────────────────────────────────────────────────
+function ShareReport({data,vehicleId,onClose}){
+  const vehicle=data.vehicles.find(v=>v.id===vehicleId);
+  const fills=(data.fills||[]).filter(f=>f.vehicleId===vehicleId);
+  const parts=(data.parts||[]).filter(p=>p.vehicleId===vehicleId);
+  const now=new Date();
+  const MONTH_NAMES=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const monthLabel=MONTH_NAMES[now.getMonth()]+' '+now.getFullYear();
+  const stats=calcStats(fills);
+  const trackedKm=fills.reduce((a,f)=>a+f.km,0);
+  const currentKm=(vehicle?.purchaseKm||0)+(vehicle?.extraKm||0)+trackedKm;
+  const totalParts=parts.reduce((a,p)=>a+p.price,0);
+  const records=calcRecords(fills);
+
+  const canvasRef=useRef();
+  const [generated,setGenerated]=useState(false);
+  const [copied,setCopied]=useState(false);
+
+  useEffect(()=>{
+    const canvas=canvasRef.current;
+    if(!canvas||!stats) return;
+    const ctx=canvas.getContext('2d');
+    const W=600,H=900;
+    canvas.width=W;canvas.height=H;
+
+    // Background
+    const bg=ctx.createLinearGradient(0,0,W,H);
+    bg.addColorStop(0,'#0F1117');bg.addColorStop(1,'#1A1D2E');
+    ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+    // Decorative circles
+    ctx.beginPath();ctx.arc(W,0,200,'0',Math.PI*2);ctx.fillStyle='rgba(245,158,11,0.05)';ctx.fill();
+    ctx.beginPath();ctx.arc(0,H,250,'0',Math.PI*2);ctx.fillStyle='rgba(168,85,247,0.05)';ctx.fill();
+
+    // Header
+    ctx.fillStyle='#F59E0B';ctx.font='bold 28px -apple-system,sans-serif';
+    ctx.fillText('⛽ CarbuTrack',32,58);
+    ctx.fillStyle='#475569';ctx.font='16px -apple-system,sans-serif';
+    ctx.fillText('Rapport — '+monthLabel,32,84);
+
+    // Vehicle name
+    ctx.fillStyle='#F1F5F9';ctx.font='bold 22px -apple-system,sans-serif';
+    ctx.fillText(vehicle?.name||'Véhicule',32,130);
+    ctx.fillStyle='#94A3B8';ctx.font='15px -apple-system,sans-serif';
+    ctx.fillText(currentKm.toLocaleString('fr-CH')+' km au compteur',32,156);
+
+    // Divider
+    ctx.fillStyle='#2D3250';ctx.fillRect(32,172,W-64,1);
+
+    // Stats cards (2x2 grid)
+    const cards=[
+      {label:'Carburant dépensé',val:stats.totalChf.toFixed(2)+' CHF',color:'#F59E0B'},
+      {label:'Km parcourus',val:stats.totalKm.toLocaleString('fr-CH')+' km',color:'#10B981'},
+      {label:'Litres consommés',val:stats.totalL+' L',color:'#3B82F6'},
+      {label:'Conso moyenne',val:(stats.avgL100||'–')+' L/100',color:stats.avgL100>8?'#EF4444':stats.avgL100>6?'#F59E0B':'#10B981'},
+    ];
+    cards.forEach((c,i)=>{
+      const col=i%2,row=Math.floor(i/2);
+      const x=32+col*((W-64)/2+8),y=190+row*110;
+      const cw=(W-80)/2,ch=90;
+      // Card bg
+      ctx.fillStyle='#1A1D2E';
+      roundRect(ctx,x,y,cw,ch,12);ctx.fill();
+      ctx.strokeStyle='#2D3250';ctx.lineWidth=1;
+      roundRect(ctx,x,y,cw,ch,12);ctx.stroke();
+      // Value
+      ctx.fillStyle=c.color;ctx.font='bold 24px -apple-system,sans-serif';
+      ctx.fillText(c.val,x+16,y+38);
+      // Label
+      ctx.fillStyle='#64748B';ctx.font='13px -apple-system,sans-serif';
+      ctx.fillText(c.label,x+16,y+62);
+    });
+
+    // Records section
+    if(records){
+      ctx.fillStyle='#F1F5F9';ctx.font='bold 17px -apple-system,sans-serif';
+      ctx.fillText('🏆 Records personnels',32,420);
+      const recs=[
+        {label:'Meilleur prix',val:records.bestPrice.pricePerL.toFixed(3)+' CHF/L',color:'#10B981'},
+        {label:'Pire prix',val:records.worstPrice.pricePerL.toFixed(3)+' CHF/L',color:'#EF4444'},
+        records.bestConso&&{label:'Meilleure conso',val:records.bestConso.l100.toFixed(2)+' L/100',color:'#10B981'},
+        records.worstConso&&{label:'Pire conso',val:records.worstConso.l100.toFixed(2)+' L/100',color:'#EF4444'},
+        {label:'Plus gros plein',val:records.biggestFill.quantity.toFixed(1)+' L',color:'#3B82F6'},
+      ].filter(Boolean);
+      recs.forEach((r,i)=>{
+        const y=448+i*40;
+        ctx.fillStyle='#1E2336';ctx.fillRect(32,y,W-64,34);
+        ctx.fillStyle='#94A3B8';ctx.font='14px -apple-system,sans-serif';ctx.fillText(r.label,48,y+22);
+        ctx.fillStyle=r.color;ctx.font='bold 14px -apple-system,sans-serif';
+        ctx.textAlign='right';ctx.fillText(r.val,W-48,y+22);ctx.textAlign='left';
+      });
+    }
+
+    // Achat totals
+    const ty=450+5*40+10;
+    ctx.fillStyle='#2D3250';ctx.fillRect(32,ty,W-64,1);
+    ctx.fillStyle='#F1F5F9';ctx.font='bold 17px -apple-system,sans-serif';
+    ctx.fillText('💰 Dépenses totales',32,ty+32);
+    const spent=[
+      {l:'Carburant',v:stats.totalChf.toFixed(2)+' CHF',c:'#F59E0B'},
+      {l:'Achat/Tuning',v:parts.filter(p=>(p.partType||'tuning')==='tuning').reduce((a,p)=>a+p.price,0).toFixed(2)+' CHF',c:'#A855F7'},
+      {l:'Maintenance',v:parts.filter(p=>p.partType==='maintenance').reduce((a,p)=>a+p.price,0).toFixed(2)+' CHF',c:'#F97316'},
+      {l:'Nettoyage',v:parts.filter(p=>p.partType==='cleaning').reduce((a,p)=>a+p.price,0).toFixed(2)+' CHF',c:'#06B6D4'},
+      {l:'Parking',v:parts.filter(p=>p.partType==='parking').reduce((a,p)=>a+p.price,0).toFixed(2)+' CHF',c:'#6366F1'},
+    ];
+    spent.forEach((s,i)=>{
+      const y=ty+56+i*36;
+      ctx.fillStyle='#475569';ctx.font='13px -apple-system,sans-serif';ctx.fillText(s.l,48,y);
+      ctx.fillStyle=s.c;ctx.font='bold 13px -apple-system,sans-serif';
+      ctx.textAlign='right';ctx.fillText(s.v,W-48,y);ctx.textAlign='left';
+    });
+
+    // Grand total
+    const gtY=ty+56+spent.length*36+12;
+    ctx.fillStyle='#2D3250';ctx.fillRect(32,gtY,W-64,1);
+    const grandT=(stats.totalChf+totalParts).toFixed(2);
+    ctx.fillStyle='#F1F5F9';ctx.font='bold 18px -apple-system,sans-serif';ctx.fillText('Total général',32,gtY+28);
+    ctx.fillStyle='#F59E0B';ctx.font='bold 22px -apple-system,sans-serif';
+    ctx.textAlign='right';ctx.fillText(grandT+' CHF',W-32,gtY+28);ctx.textAlign='left';
+
+    // Footer
+    ctx.fillStyle='#2D3250';ctx.fillRect(0,H-60,W,1);
+    ctx.fillStyle='#475569';ctx.font='12px -apple-system,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('Généré par CarbuTrack · fmrodrigomf.github.io/carbutrack',W/2,H-30);
+    ctx.textAlign='left';
+
+    setGenerated(true);
+  },[]);
+
+  const download=()=>{
+    const canvas=canvasRef.current;
+    if(!canvas) return;
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/png');
+    a.download='carbutrack-rapport.png';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  };
+
+  const copyImage=async()=>{
+    const canvas=canvasRef.current;
+    if(!canvas) return;
+    try{
+      canvas.toBlob(async blob=>{
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        setCopied(true);setTimeout(()=>setCopied(false),2000);
+      });
+    }catch{
+      // Fallback: download
+      download();
+    }
+  };
+
+  if(!stats) return React.createElement(Modal,{title:'📸 Rapport',onClose},
+    React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'📊'),React.createElement('div',{className:'empty-title'},'Pas de données'))
+  );
+
+  return React.createElement(Modal,{title:'📸 Partager le rapport',onClose},
+    React.createElement('div',{style:{padding:'0 20px'}},
+      React.createElement('canvas',{ref:canvasRef,style:{width:'100%',borderRadius:12,border:'1px solid var(--border)',display:'block',marginBottom:12}}),
+      React.createElement('div',{style:{display:'flex',gap:10,marginBottom:8}},
+        React.createElement('button',{type:'button',className:'btn-primary',style:{flex:1},onClick:download},'⬇️ Télécharger'),
+        React.createElement('button',{type:'button',className:'btn-primary',style:{flex:1,background:'var(--purple)'},onClick:copyImage},copied?'✓ Copié !':'📋 Copier image'),
+      ),
+      React.createElement('div',{style:{fontSize:11,color:'var(--text-muted)',textAlign:'center'}},'Sur iPhone : appuyez longuement sur l\'image → Enregistrer / Partager')
+    )
+  );
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+
+// ── Monthly Report Modal ───────────────────────────────────────────────────
+// ── Tutorial / Manuel ─────────────────────────────────────────────────────
+const TUTORIAL_STEPS=[
+  {
+    id:'welcome',icon:'⛽',color:'#F59E0B',
+    title:'Bienvenue sur CarbuTrack !',
+    desc:'Votre carnet de bord numérique pour suivre toutes les dépenses liées à vos véhicules. Voici un rapide tour du propriétaire.',
+    tip:null,
+  },
+  {
+    id:'dashboard',icon:'🏁',color:'#10B981',
+    title:'Tableau de bord',
+    desc:'La page d\'accueil résume tout : kilométrage actuel, prochain plein estimé, coûts totaux (carburant + assurance), prix de revente estimé et historique complet de vos pleins.',
+    tip:'Appuyez sur + en haut à droite pour enregistrer un plein rapidement.',
+  },
+  {
+    id:'fill',icon:'⛽',color:'#3B82F6',
+    title:'Enregistrer un plein',
+    desc:'Pour chaque plein, indiquez : la station, le type de carburant (SP95/SP98), le prix au litre, les litres mis, et les km parcourus depuis le dernier plein.',
+    tip:'Les km parcourus (pas le total compteur) permettent de calculer votre consommation L/100 km.',
+  },
+  {
+    id:'achat',icon:'🛒',color:'#A855F7',
+    title:'Onglet Achat',
+    desc:'Suivez toutes vos dépenses véhicule en 4 catégories :\n🔧 Pièces / tuning\n🛠 Maintenance (vidange, freins…)\n🧽 Nettoyage (lavage, détailing…)\n🅿️ Parking / péages / vignette',
+    tip:'La maintenance inclut une checklist de 12 opérations avec prix individuel par pièce.',
+  },
+  {
+    id:'gear',icon:'🎒',color:'#EC4899',
+    title:'Onglet Équipement',
+    desc:'Gérez votre équipement personnel non lié à un véhicule : casque, blouson, gants, bottes, intercom Cardo, bagagerie et plus encore.',
+    tip:'Le total équipement est affiché séparément du budget véhicule.',
+  },
+  {
+    id:'service',icon:'🛠️',color:'#14B8A6',
+    title:'Onglet Service',
+    desc:'Enregistrez vos révisions avec une checklist détaillée. Configurez les intervalles (km et/ou mois) dans les Réglages pour recevoir des alertes avant l\'échéance.',
+    tip:'Une alerte 🚨 apparaît sur toutes les pages quand le service approche.',
+  },
+  {
+    id:'charts',icon:'📊',color:'#6366F1',
+    title:'Onglet Graphiques',
+    desc:'7 graphiques avec périodes glissantes (7j → Tout) : dépenses, prix du carburant dans le temps, coût par plein, litres, km, consommation L/100 km, prix moyen par station et comparaison multi-véhicules.',
+    tip:'Le point vert = votre plein le moins cher. Le rouge = le plus cher.',
+  },
+  {
+    id:'settings',icon:'⚙️',color:'#94A3B8',
+    title:'Réglages',
+    desc:'Configurez vos véhicules (prix d\'achat, km, assurance, intervalles service), personnalisez l\'apparence (12 thèmes, 12 couleurs, 8 textures) et gérez vos données (export/import JSON).',
+    tip:'Exportez régulièrement vos données en JSON pour les sauvegarder.',
+  },
+  {
+    id:'ready',icon:'🚀',color:'#F59E0B',
+    title:'Vous êtes prêt !',
+    desc:'Commencez par configurer votre véhicule dans les Réglages, puis enregistrez votre premier plein. Ce manuel reste disponible à tout moment depuis Réglages → ❓ Manuel.',
+    tip:null,
+  },
+];
+
+function Tutorial({onClose,startStep=0}){
+  const [step,setStep]=useState(startStep);
+  const s=TUTORIAL_STEPS[step];
+  const isLast=step===TUTORIAL_STEPS.length-1;
+  const isFirst=step===0;
+  return React.createElement('div',{
+    style:{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',zIndex:700,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 0 var(--safe-bot)'},
+    onClick:e=>{if(e.target===e.currentTarget&&isLast)onClose();}
+  },
+    React.createElement('div',{style:{background:'var(--surface)',width:'100%',maxWidth:520,borderRadius:'20px 20px 0 0',padding:'0 0 28px',animation:'slideUp .3s ease'},onClick:e=>e.stopPropagation()},
+      // Progress dots
+      React.createElement('div',{style:{display:'flex',justifyContent:'center',gap:6,padding:'16px 0 0'}},
+        TUTORIAL_STEPS.map((_,i)=>React.createElement('div',{key:i,style:{
+          width:i===step?20:6,height:6,borderRadius:3,
+          background:i===step?s.color:i<step?'var(--text-muted)':'var(--border)',
+          transition:'all .3s'
+        }}))
+      ),
+      // Content
+      React.createElement('div',{style:{padding:'20px 24px 0',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:56,marginBottom:12,lineHeight:1}},s.icon),
+        React.createElement('div',{style:{
+          display:'inline-block',padding:'3px 10px',borderRadius:20,
+          background:s.color+'22',border:'1px solid '+s.color+'44',
+          fontSize:11,fontWeight:700,color:s.color,marginBottom:12,
+          textTransform:'uppercase',letterSpacing:'.6px'
+        }},`${step+1} / ${TUTORIAL_STEPS.length}`),
+        React.createElement('div',{style:{fontSize:20,fontWeight:800,marginBottom:10,letterSpacing:'-.3px'}},s.title),
+        React.createElement('div',{style:{fontSize:14,color:'var(--text-dim)',lineHeight:1.65,whiteSpace:'pre-line'}},s.desc),
+        s.tip&&React.createElement('div',{style:{
+          marginTop:14,padding:'10px 14px',borderRadius:10,
+          background:s.color+'12',border:'1px solid '+s.color+'30',
+          fontSize:12,color:s.color,textAlign:'left',lineHeight:1.5
+        }},
+          React.createElement('span',{style:{fontWeight:700}},'💡 Astuce : '),s.tip
+        )
+      ),
+      // Buttons
+      React.createElement('div',{style:{display:'flex',gap:10,padding:'20px 24px 0'}},
+        !isFirst&&React.createElement('button',{
+          type:'button',
+          onClick:()=>setStep(p=>p-1),
+          style:{flex:1,padding:13,background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:12,color:'var(--text-dim)',fontSize:15,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}
+        },'← Précédent'),
+        React.createElement('button',{
+          type:'button',
+          onClick:isLast?onClose:()=>setStep(p=>p+1),
+          style:{flex:2,padding:13,background:isLast?s.color:'var(--amber)',border:'none',borderRadius:12,color:'#000',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'background .2s'}
+        },isLast?'🚀 C\'est parti !':'Suivant →'),
+        isFirst&&React.createElement('button',{
+          type:'button',
+          onClick:onClose,
+          style:{flex:1,padding:13,background:'none',border:'none',borderRadius:12,color:'var(--text-muted)',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}
+        },'Passer'),
+      )
+    )
+  );
+}
+
+// ── Manual (accessible from Settings) ─────────────────────────────────────
+function ManualModal({onClose}){
+  const [activeId,setActiveId]=useState('welcome');
+  const s=TUTORIAL_STEPS.find(x=>x.id===activeId)||TUTORIAL_STEPS[0];
+  return React.createElement(Modal,{title:'❓ Manuel CarbuTrack',onClose},
+    React.createElement('div',{style:{padding:'0 20px 0'}},
+      // Category nav
+      React.createElement('div',{style:{display:'flex',gap:6,overflowX:'auto',WebkitOverflowScrolling:'touch',paddingBottom:12,marginBottom:4}},
+        TUTORIAL_STEPS.map(t=>React.createElement('button',{
+          key:t.id,type:'button',
+          onClick:()=>setActiveId(t.id),
+          style:{
+            flexShrink:0,padding:'6px 12px',borderRadius:20,border:`1px solid ${activeId===t.id?t.color:'var(--border)'}`,
+            background:activeId===t.id?t.color+'22':'none',
+            color:activeId===t.id?t.color:'var(--text-dim)',
+            fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+            display:'flex',alignItems:'center',gap:5
+          }
+        },t.icon,' ',t.title.split(' ')[0]))
+      ),
+      // Content
+      React.createElement('div',{style:{background:'var(--surface2)',borderRadius:14,padding:'20px 18px',marginBottom:4}},
+        React.createElement('div',{style:{fontSize:32,marginBottom:10,textAlign:'center'}},s.icon),
+        React.createElement('div',{style:{fontSize:17,fontWeight:700,marginBottom:8,color:s.color}},s.title),
+        React.createElement('div',{style:{fontSize:14,color:'var(--text-dim)',lineHeight:1.7,whiteSpace:'pre-line'}},s.desc),
+        s.tip&&React.createElement('div',{style:{marginTop:12,padding:'10px 14px',borderRadius:10,background:s.color+'12',border:'1px solid '+s.color+'30',fontSize:12,color:s.color,lineHeight:1.5}},
+          React.createElement('span',{style:{fontWeight:700}},'💡 Astuce : '),s.tip
+        )
+      )
+    )
+  );
+}
+
+
+
+// ── Badges Modal ───────────────────────────────────────────────────────────
+function BadgesModal({data,vehicleId,onClose}){
+  const fills=(data.fills||[]).filter(f=>f.vehicleId===vehicleId);
+  const parts=(data.parts||[]).filter(p=>p.vehicleId===vehicleId);
+  const badges=calcBadges(fills,parts,data);
+  const unlocked=badges.filter(b=>b.unlocked).length;
+  const records=calcRecords(fills);
+  return React.createElement(Modal,{title:'🏆 Badges & Records',onClose},
+    React.createElement('div',{style:{padding:'0 20px 8px'}},
+      // Progress bar
+      React.createElement('div',{style:{marginBottom:16}},
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:6}},
+          React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'var(--text-dim)'}},'Progression'),
+          React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'var(--amber)'}},unlocked+' / '+badges.length)
+        ),
+        React.createElement('div',{style:{height:8,background:'var(--border)',borderRadius:4,overflow:'hidden'}},
+          React.createElement('div',{style:{height:'100%',borderRadius:4,background:'var(--amber)',width:(unlocked/badges.length*100).toFixed(1)+'%',transition:'width .6s'}})
+        )
+      ),
+      // Badges grid
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:20}},
+        badges.map(b=>React.createElement('div',{key:b.id,style:{
+          background:b.unlocked?'rgba(245,158,11,.1)':'var(--surface2)',
+          border:'1px solid '+(b.unlocked?'rgba(245,158,11,.3)':'var(--border)'),
+          borderRadius:12,padding:'12px 8px',textAlign:'center',
+          opacity:b.unlocked?1:0.45,transition:'all .2s'
+        }},
+          React.createElement('div',{style:{fontSize:28,marginBottom:4,filter:b.unlocked?'none':'grayscale(1)'}},b.icon),
+          React.createElement('div',{style:{fontSize:10,fontWeight:700,color:b.unlocked?'var(--amber)':'var(--text-muted)',lineHeight:1.3}},b.label),
+          !b.unlocked&&React.createElement('div',{style:{fontSize:9,color:'var(--text-muted)',marginTop:3,lineHeight:1.3}},b.desc)
+        ))
+      ),
+      // Records
+      records&&React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'var(--text-dim)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:10}},'📊 Records personnels'),
+        [
+          {l:'🟢 Meilleur prix',v:records.bestPrice.pricePerL.toFixed(3)+' CHF/L',sub:records.bestPrice.date,c:'var(--green)'},
+          {l:'🔴 Pire prix',v:records.worstPrice.pricePerL.toFixed(3)+' CHF/L',sub:records.worstPrice.date,c:'var(--red)'},
+          records.bestConso&&{l:'🟢 Meilleure conso',v:records.bestConso.l100.toFixed(2)+' L/100 km',sub:records.bestConso.date,c:'var(--green)'},
+          records.worstConso&&{l:'🔴 Pire conso',v:records.worstConso.l100.toFixed(2)+' L/100 km',sub:records.worstConso.date,c:'var(--red)'},
+          {l:'⛽ Plus gros plein',v:records.biggestFill.quantity.toFixed(1)+' L',sub:records.biggestFill.date,c:'var(--blue)'},
+          {l:'💸 Plein le + cher',v:(records.mostExpensive.pricePerL*records.mostExpensive.quantity).toFixed(2)+' CHF',sub:records.mostExpensive.date,c:'var(--orange)'},
+        ].filter(Boolean).map((r,i)=>React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}},
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)'}},r.l),
+            React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:1}},r.sub)
+          ),
+          React.createElement('div',{style:{fontSize:15,fontWeight:700,color:r.c,fontVariantNumeric:'tabular-nums'}},r.v)
+        ))
+      )
+    )
+  );
+}
+
+
+// ── Share Report ───────────────────────────────────────────────────────────
+function ShareReport({data,vehicleId,onClose}){
+  const vehicle=data.vehicles.find(v=>v.id===vehicleId);
+  const fills=(data.fills||[]).filter(f=>f.vehicleId===vehicleId);
+  const parts=(data.parts||[]).filter(p=>p.vehicleId===vehicleId);
+  const now=new Date();
+  const MONTH_NAMES=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const monthLabel=MONTH_NAMES[now.getMonth()]+' '+now.getFullYear();
+  const stats=calcStats(fills);
+  const trackedKm=fills.reduce((a,f)=>a+f.km,0);
+  const currentKm=(vehicle?.purchaseKm||0)+(vehicle?.extraKm||0)+trackedKm;
+  const totalParts=parts.reduce((a,p)=>a+p.price,0);
+  const records=calcRecords(fills);
+
+  const canvasRef=useRef();
+  const [generated,setGenerated]=useState(false);
+  const [copied,setCopied]=useState(false);
+
+  useEffect(()=>{
+    const canvas=canvasRef.current;
+    if(!canvas||!stats) return;
+    const ctx=canvas.getContext('2d');
+    const W=600,H=900;
+    canvas.width=W;canvas.height=H;
+
+    // Background
+    const bg=ctx.createLinearGradient(0,0,W,H);
+    bg.addColorStop(0,'#0F1117');bg.addColorStop(1,'#1A1D2E');
+    ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+    // Decorative circles
+    ctx.beginPath();ctx.arc(W,0,200,'0',Math.PI*2);ctx.fillStyle='rgba(245,158,11,0.05)';ctx.fill();
+    ctx.beginPath();ctx.arc(0,H,250,'0',Math.PI*2);ctx.fillStyle='rgba(168,85,247,0.05)';ctx.fill();
+
+    // Header
+    ctx.fillStyle='#F59E0B';ctx.font='bold 28px -apple-system,sans-serif';
+    ctx.fillText('⛽ CarbuTrack',32,58);
+    ctx.fillStyle='#475569';ctx.font='16px -apple-system,sans-serif';
+    ctx.fillText('Rapport — '+monthLabel,32,84);
+
+    // Vehicle name
+    ctx.fillStyle='#F1F5F9';ctx.font='bold 22px -apple-system,sans-serif';
+    ctx.fillText(vehicle?.name||'Véhicule',32,130);
+    ctx.fillStyle='#94A3B8';ctx.font='15px -apple-system,sans-serif';
+    ctx.fillText(currentKm.toLocaleString('fr-CH')+' km au compteur',32,156);
+
+    // Divider
+    ctx.fillStyle='#2D3250';ctx.fillRect(32,172,W-64,1);
+
+    // Stats cards (2x2 grid)
+    const cards=[
+      {label:'Carburant dépensé',val:stats.totalChf.toFixed(2)+' CHF',color:'#F59E0B'},
+      {label:'Km parcourus',val:stats.totalKm.toLocaleString('fr-CH')+' km',color:'#10B981'},
+      {label:'Litres consommés',val:stats.totalL+' L',color:'#3B82F6'},
+      {label:'Conso moyenne',val:(stats.avgL100||'–')+' L/100',color:stats.avgL100>8?'#EF4444':stats.avgL100>6?'#F59E0B':'#10B981'},
+    ];
+    cards.forEach((c,i)=>{
+      const col=i%2,row=Math.floor(i/2);
+      const x=32+col*((W-64)/2+8),y=190+row*110;
+      const cw=(W-80)/2,ch=90;
+      // Card bg
+      ctx.fillStyle='#1A1D2E';
+      roundRect(ctx,x,y,cw,ch,12);ctx.fill();
+      ctx.strokeStyle='#2D3250';ctx.lineWidth=1;
+      roundRect(ctx,x,y,cw,ch,12);ctx.stroke();
+      // Value
+      ctx.fillStyle=c.color;ctx.font='bold 24px -apple-system,sans-serif';
+      ctx.fillText(c.val,x+16,y+38);
+      // Label
+      ctx.fillStyle='#64748B';ctx.font='13px -apple-system,sans-serif';
+      ctx.fillText(c.label,x+16,y+62);
+    });
+
+    // Records section
+    if(records){
+      ctx.fillStyle='#F1F5F9';ctx.font='bold 17px -apple-system,sans-serif';
+      ctx.fillText('🏆 Records personnels',32,420);
+      const recs=[
+        {label:'Meilleur prix',val:records.bestPrice.pricePerL.toFixed(3)+' CHF/L',color:'#10B981'},
+        {label:'Pire prix',val:records.worstPrice.pricePerL.toFixed(3)+' CHF/L',color:'#EF4444'},
+        records.bestConso&&{label:'Meilleure conso',val:records.bestConso.l100.toFixed(2)+' L/100',color:'#10B981'},
+        records.worstConso&&{label:'Pire conso',val:records.worstConso.l100.toFixed(2)+' L/100',color:'#EF4444'},
+        {label:'Plus gros plein',val:records.biggestFill.quantity.toFixed(1)+' L',color:'#3B82F6'},
+      ].filter(Boolean);
+      recs.forEach((r,i)=>{
+        const y=448+i*40;
+        ctx.fillStyle='#1E2336';ctx.fillRect(32,y,W-64,34);
+        ctx.fillStyle='#94A3B8';ctx.font='14px -apple-system,sans-serif';ctx.fillText(r.label,48,y+22);
+        ctx.fillStyle=r.color;ctx.font='bold 14px -apple-system,sans-serif';
+        ctx.textAlign='right';ctx.fillText(r.val,W-48,y+22);ctx.textAlign='left';
+      });
+    }
+
+    // Achat totals
+    const ty=450+5*40+10;
+    ctx.fillStyle='#2D3250';ctx.fillRect(32,ty,W-64,1);
+    ctx.fillStyle='#F1F5F9';ctx.font='bold 17px -apple-system,sans-serif';
+    ctx.fillText('💰 Dépenses totales',32,ty+32);
+    const spent=[
+      {l:'Carburant',v:stats.totalChf.toFixed(2)+' CHF',c:'#F59E0B'},
+      {l:'Achat/Tuning',v:parts.filter(p=>(p.partType||'tuning')==='tuning').reduce((a,p)=>a+p.price,0).toFixed(2)+' CHF',c:'#A855F7'},
+      {l:'Maintenance',v:parts.filter(p=>p.partType==='maintenance').reduce((a,p)=>a+p.price,0).toFixed(2)+' CHF',c:'#F97316'},
+      {l:'Nettoyage',v:parts.filter(p=>p.partType==='cleaning').reduce((a,p)=>a+p.price,0).toFixed(2)+' CHF',c:'#06B6D4'},
+      {l:'Parking',v:parts.filter(p=>p.partType==='parking').reduce((a,p)=>a+p.price,0).toFixed(2)+' CHF',c:'#6366F1'},
+    ];
+    spent.forEach((s,i)=>{
+      const y=ty+56+i*36;
+      ctx.fillStyle='#475569';ctx.font='13px -apple-system,sans-serif';ctx.fillText(s.l,48,y);
+      ctx.fillStyle=s.c;ctx.font='bold 13px -apple-system,sans-serif';
+      ctx.textAlign='right';ctx.fillText(s.v,W-48,y);ctx.textAlign='left';
+    });
+
+    // Grand total
+    const gtY=ty+56+spent.length*36+12;
+    ctx.fillStyle='#2D3250';ctx.fillRect(32,gtY,W-64,1);
+    const grandT=(stats.totalChf+totalParts).toFixed(2);
+    ctx.fillStyle='#F1F5F9';ctx.font='bold 18px -apple-system,sans-serif';ctx.fillText('Total général',32,gtY+28);
+    ctx.fillStyle='#F59E0B';ctx.font='bold 22px -apple-system,sans-serif';
+    ctx.textAlign='right';ctx.fillText(grandT+' CHF',W-32,gtY+28);ctx.textAlign='left';
+
+    // Footer
+    ctx.fillStyle='#2D3250';ctx.fillRect(0,H-60,W,1);
+    ctx.fillStyle='#475569';ctx.font='12px -apple-system,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('Généré par CarbuTrack · fmrodrigomf.github.io/carbutrack',W/2,H-30);
+    ctx.textAlign='left';
+
+    setGenerated(true);
+  },[]);
+
+  const download=()=>{
+    const canvas=canvasRef.current;
+    if(!canvas) return;
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/png');
+    a.download='carbutrack-rapport.png';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  };
+
+  const copyImage=async()=>{
+    const canvas=canvasRef.current;
+    if(!canvas) return;
+    try{
+      canvas.toBlob(async blob=>{
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        setCopied(true);setTimeout(()=>setCopied(false),2000);
+      });
+    }catch{
+      // Fallback: download
+      download();
+    }
+  };
+
+  if(!stats) return React.createElement(Modal,{title:'📸 Rapport',onClose},
+    React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'📊'),React.createElement('div',{className:'empty-title'},'Pas de données'))
+  );
+
+  return React.createElement(Modal,{title:'📸 Partager le rapport',onClose},
+    React.createElement('div',{style:{padding:'0 20px'}},
+      React.createElement('canvas',{ref:canvasRef,style:{width:'100%',borderRadius:12,border:'1px solid var(--border)',display:'block',marginBottom:12}}),
+      React.createElement('div',{style:{display:'flex',gap:10,marginBottom:8}},
+        React.createElement('button',{type:'button',className:'btn-primary',style:{flex:1},onClick:download},'⬇️ Télécharger'),
+        React.createElement('button',{type:'button',className:'btn-primary',style:{flex:1,background:'var(--purple)'},onClick:copyImage},copied?'✓ Copié !':'📋 Copier image'),
+      ),
+      React.createElement('div',{style:{fontSize:11,color:'var(--text-muted)',textAlign:'center'}},'Sur iPhone : appuyez longuement sur l\'image → Enregistrer / Partager')
+    )
+  );
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+
 // ── Monthly Report Modal ───────────────────────────────────────────────────
 function MonthlyReport({data,vehicleId,onClose}){
   const now=new Date();
@@ -1338,6 +2173,25 @@ function MonthlyReport({data,vehicleId,onClose}){
 function App(){
   const [data,setData]=useState(loadData);
   const [showMonthlyReport,setShowMonthlyReport]=useState(false);
+  const [showTutorial,setShowTutorial]=useState(false);
+  const [showManual,setShowManual]=useState(false);
+  const [showBadges,setShowBadges]=useState(false);
+  const [showShare,setShowShare]=useState(false);
+  const [newBadgePopup,setNewBadgePopup]=useState(null);
+  const prevBadgesRef=useRef(null);
+
+  // ── Auto-show tutorial on first launch (no data) ──
+  useEffect(()=>{
+    const seen=localStorage.getItem('carbutrack_tutorial_seen');
+    if(!seen){
+      setTimeout(()=>setShowTutorial(true),600);
+    }
+  },[]);
+
+  const dismissTutorial=()=>{
+    localStorage.setItem('carbutrack_tutorial_seen','1');
+    setShowTutorial(false);
+  };
 
   // ── Monthly report popup (1st of month, if enabled) ──
   useEffect(()=>{
@@ -1375,6 +2229,21 @@ function App(){
 
   useEffect(()=>{saveData(data);},[data]);
   useEffect(()=>{if(!data.vehicles.find(v=>v.id===activeV)&&data.vehicles.length>0)setActiveV(data.vehicles[0].id);},[data.vehicles]);
+
+  // ── Badge unlock detection (after activeV is declared) ──
+  useEffect(()=>{
+    const fills=data.fills.filter(f=>f.vehicleId===activeV);
+    const parts=(data.parts||[]).filter(p=>p.vehicleId===activeV);
+    const badges=calcBadges(fills,parts,data);
+    if(prevBadgesRef.current){
+      const newlyUnlocked=badges.filter(b=>b.unlocked&&!prevBadgesRef.current.find(pb=>pb.id===b.id&&pb.unlocked));
+      if(newlyUnlocked.length>0){
+        setNewBadgePopup(newlyUnlocked[0]);
+        setTimeout(()=>setNewBadgePopup(null),4000);
+      }
+    }
+    prevBadgesRef.current=badges;
+  },[data,activeV]);
 
   const vFills=data.fills.filter(f=>f.vehicleId===activeV).sort((a,b)=>b.date.localeCompare(a.date));
   const vParts=(data.parts||[]).filter(p=>p.vehicleId===activeV).sort((a,b)=>b.date.localeCompare(a.date));
@@ -1488,6 +2357,30 @@ function App(){
         addBtn(()=>setShowAdd(true))
       ),
       React.createElement(VehicleBar),
+      // BADGES + PARTAGE — toujours visibles
+      React.createElement('div',{style:{display:'flex',gap:10,margin:'0 20px 12px'}},
+        React.createElement('button',{type:'button',
+          onClick:()=>setShowBadges(true),
+          style:{flex:1,padding:12,background:'rgba(245,158,11,.08)',border:'1px solid rgba(245,158,11,.2)',borderRadius:12,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}},
+          React.createElement('span',{style:{fontSize:18}},'🏆'),
+          React.createElement('div',{style:{textAlign:'left'}},
+            React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'var(--amber)'}},'Badges'),
+            React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)'}},
+              (()=>{const b=calcBadges(vFills,vParts,data);return b.filter(x=>x.unlocked).length+'/'+b.length;})()
+            )
+          )
+        ),
+        React.createElement('button',{type:'button',
+          onClick:()=>setShowShare(true),
+          style:{flex:1,padding:12,background:'rgba(99,102,241,.08)',border:'1px solid rgba(99,102,241,.2)',borderRadius:12,cursor:'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',justifyContent:'center',gap:6}},
+          React.createElement('span',{style:{fontSize:18}},'📸'),
+          React.createElement('div',{style:{textAlign:'left'}},
+            React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#6366F1'}},'Partager'),
+            React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)'}},'Rapport image')
+          )
+        )
+      ),
+
       !stats?React.createElement('div',{className:'empty'},
         React.createElement('div',{style:{marginBottom:12}},React.createElement(VehicleIcon,{iconId:vehicle?.iconId||'car',size:64})),
         React.createElement('div',{className:'empty-title'},vehicle?.name||'Véhicule'),
@@ -1602,12 +2495,17 @@ function App(){
         // SP95/SP98 + STATIONS
         React.createElement('div',{className:'dash-grid'},
           React.createElement('div',null,React.createElement('div',{className:'card'},
-            React.createElement('div',{className:'card-title'},'Carburant SP95 / SP98'),
+            React.createElement('div',{className:'card-title'},'Carburant par type'),
             React.createElement('div',{style:{display:'flex',alignItems:'center',gap:16}},
-              React.createElement(Donut,{data:[{label:'SP95',value:stats.sp95},{label:'SP98',value:stats.sp98}],colors:['#3B82F6','#F59E0B']}),
-              React.createElement('div',{style:{flex:1}},
-                React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:10}},React.createElement('span',{className:'fuel-badge fuel-sp95'},'SP95'),React.createElement('span',{style:{fontWeight:700,fontVariantNumeric:'tabular-nums'}},stats.sp95+' L')),
-                React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},React.createElement('span',{className:'fuel-badge fuel-sp98'},'SP98'),React.createElement('span',{style:{fontWeight:700,fontVariantNumeric:'tabular-nums'}},stats.sp98+' L'))
+              React.createElement(Donut,{
+                data:[{label:'SP95',value:stats.sp95},{label:'SP98',value:stats.sp98},{label:'Diesel',value:stats.diesel||0},{label:'Diesel+',value:stats.dieselP||0}].filter(d=>d.value>0),
+                colors:['#3B82F6','#F59E0B','#34D399','#C084FC']
+              }),
+              React.createElement('div',{style:{flex:1,display:'flex',flexDirection:'column',gap:6}},
+                stats.sp95>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},React.createElement('span',{className:'fuel-badge fuel-sp95'},'SP95'),React.createElement('span',{style:{fontWeight:700,fontVariantNumeric:'tabular-nums'}},stats.sp95+' L')),
+                stats.sp98>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},React.createElement('span',{className:'fuel-badge fuel-sp98'},'SP98'),React.createElement('span',{style:{fontWeight:700,fontVariantNumeric:'tabular-nums'}},stats.sp98+' L')),
+                (stats.diesel||0)>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},React.createElement('span',{className:'fuel-badge fuel-diesel'},'Diesel'),React.createElement('span',{style:{fontWeight:700,fontVariantNumeric:'tabular-nums'}},(stats.diesel||0)+' L')),
+                (stats.dieselP||0)>0&&React.createElement('div',{style:{display:'flex',justifyContent:'space-between'}},React.createElement('span',{className:'fuel-badge fuel-diesel\\+'},'Diesel+'),React.createElement('span',{style:{fontWeight:700,fontVariantNumeric:'tabular-nums'}},(stats.dieselP||0)+' L')),
               )
             )
           )),
@@ -1683,12 +2581,14 @@ function App(){
     const tuningParts=vParts.filter(p=>getType(p)==='tuning');
     const maintParts=vParts.filter(p=>getType(p)==='maintenance');
     const cleanParts=vParts.filter(p=>getType(p)==='cleaning');
+    const parkParts=vParts.filter(p=>getType(p)==='parking');
     const totalTuning=tuningParts.reduce((a,p)=>a+p.price,0);
     const totalMaint=maintParts.reduce((a,p)=>a+p.price,0);
     const totalClean=cleanParts.reduce((a,p)=>a+p.price,0);
+    const totalPark=parkParts.reduce((a,p)=>a+p.price,0);
     const purchPrice=vehicle?.purchasePrice;
     const grandTotal=purchPrice!=null?totalTuning+purchPrice:null;
-    const filtered=tuningFilter==='tuning'?tuningParts:tuningFilter==='maintenance'?maintParts:tuningFilter==='cleaning'?cleanParts:vParts;
+    const filtered=tuningFilter==='tuning'?tuningParts:tuningFilter==='maintenance'?maintParts:tuningFilter==='cleaning'?cleanParts:tuningFilter==='parking'?parkParts:vParts;
     const cdTuning=groupByParts(vParts,tuningPeriod);
     const cdTuningOnly=groupByParts(tuningParts,tuningPeriod);
     const cdMaintOnly=groupByParts(maintParts,tuningPeriod);
@@ -1714,6 +2614,11 @@ function App(){
           React.createElement('div',{style:{fontSize:18,fontWeight:700,color:'#06B6D4',fontVariantNumeric:'tabular-nums',marginTop:4}},`${totalClean.toFixed(2)} CHF`),
           React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)',marginTop:2}},`${cleanParts.length} lavage${cleanParts.length>1?'s':''}`)
         ),
+        parkParts.length>0&&React.createElement('div',{style:{background:'rgba(99,102,241,.08)',border:'1px solid rgba(99,102,241,.2)',borderRadius:14,padding:'12px 14px'}},
+          React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.5px'}},'🅿️ Parking / Péages'),
+          React.createElement('div',{style:{fontSize:18,fontWeight:700,color:'#6366F1',fontVariantNumeric:'tabular-nums',marginTop:4}},totalPark.toFixed(2)+' CHF'),
+          React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)',marginTop:2}},parkParts.length+' entrée'+(parkParts.length>1?'s':''))
+        ),
       ),
       vParts.length>1&&React.createElement('div',{className:'card'},
         React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
@@ -1738,6 +2643,7 @@ function App(){
         React.createElement('button',{className:`inner-tab ${tuningFilter==='tuning'?'active':''}`,onClick:()=>setTuningFilter('tuning')},`🔧 Pièce (${tuningParts.length})`),
         React.createElement('button',{className:`inner-tab maint ${tuningFilter==='maintenance'?'active':''}`,onClick:()=>setTuningFilter('maintenance')},`🛠 Maintenance (${maintParts.length})`),
         React.createElement('button',{className:`inner-tab ${tuningFilter==='cleaning'?'active':''}`,style:tuningFilter==='cleaning'?{background:'#06B6D4',borderColor:'#06B6D4',color:'#fff'}:{},onClick:()=>setTuningFilter('cleaning')},`🧽 Nettoyage (${cleanParts.length})`),
+        React.createElement('button',{className:`inner-tab ${tuningFilter==='parking'?'active':''}`,style:tuningFilter==='parking'?{background:'#6366F1',borderColor:'#6366F1',color:'#fff'}:{},onClick:()=>setTuningFilter('parking')},`🅿️ Parking (${parkParts.length})`),
       ),
       filtered.length===0?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},tuningFilter==='maintenance'?'🛠':tuningFilter==='cleaning'?'🧽':'🔧'),React.createElement('div',{className:'empty-title'},'Aucune entrée'),React.createElement('div',{className:'empty-desc'},'Appuyez sur + pour ajouter.')):
       filtered.map(p=>{
@@ -1746,12 +2652,13 @@ function App(){
         const isClean=pt==='cleaning';
         const doneItems=SERVICE_ITEMS.filter(i=>(p.checks||[]).includes(i.id));
         const ct=isClean?(CLEANING_TYPES[p.cleaningType]||CLEANING_TYPES.quick):null;
-        const iconBg=isMaint?'rgba(249,115,22,.1)':isClean?'rgba(6,182,212,.1)':'rgba(168,85,247,.1)';
-        const iconBorder=isMaint?'rgba(249,115,22,.2)':isClean?'rgba(6,182,212,.2)':'rgba(168,85,247,.2)';
-        const costColor=isMaint?'var(--orange)':isClean?'#06B6D4':'var(--purple)';
-        const typeLabel=isMaint?'Maintenance':isClean?'Nettoyage':'Achat';
+        const isParkItem=pt==='parking';
+        const iconBg=isMaint?'rgba(249,115,22,.1)':isClean?'rgba(6,182,212,.1)':isParkItem?'rgba(99,102,241,.1)':'rgba(168,85,247,.1)';
+        const iconBorder=isMaint?'rgba(249,115,22,.2)':isClean?'rgba(6,182,212,.2)':isParkItem?'rgba(99,102,241,.2)':'rgba(168,85,247,.2)';
+        const costColor=isMaint?'var(--orange)':isClean?'#06B6D4':isParkItem?'#6366F1':'var(--purple)';
+        const typeLabel=isMaint?'Maintenance':isClean?'Nettoyage':isParkItem?'Parking':'Achat';
         return React.createElement('div',{key:p.id,className:'part-item'},
-          React.createElement('div',{className:'part-icon',style:{background:iconBg,border:`1px solid ${iconBorder}`}},isMaint?'🛠':isClean?(ct?.emoji||'🧽'):'🔧'),
+          React.createElement('div',{className:'part-icon',style:{background:iconBg,border:`1px solid ${iconBorder}`}},isMaint?'🛠':isClean?(ct?.emoji||'🧽'):isParkItem?((PARKING_TYPES[p.parkingType]||PARKING_TYPES.other).emoji):'🔧'),
           React.createElement('div',{className:'fill-main'},
             React.createElement('div',{className:'fill-date'},fmtDate(p.date)+' · '+typeLabel),
             React.createElement('div',{className:'fill-title'},p.name),
@@ -2306,7 +3213,7 @@ function App(){
     if(tab==='gear')return React.createElement(Gear);
     if(tab==='service')return React.createElement(Service);
     if(tab==='charts')return React.createElement(Charts);
-    return React.createElement(Settings,{data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm,setShowMonthlyReport});
+    return React.createElement(Settings,{data,exportData,importRef,setData,defState,setShowVehicleEdit,setConfirm,setShowMonthlyReport,setShowManual,setShowBadges,setShowShare,activeV});
   };
 
   return React.createElement('div',{className:'app'},
@@ -2322,11 +3229,32 @@ function App(){
     React.createElement('div',{className:'tab-bar'},
       React.createElement('div',{className:'tab-bar-inner'},navItems.map(n=>React.createElement('button',{key:n.id,className:`tab-btn ${tab===n.id?'active':''}`,onClick:()=>changeTab(n.id)},React.createElement('span',{className:'tab-icon'},n.icon),n.label)))
     ),
-    (showAdd||editFill)&&React.createElement(FillModal,{vehicleId:activeV,existing:editFill,onClose:()=>{setShowAdd(false);setEditFill(null);},onSave:saveFill}),
+    (showAdd||editFill)&&React.createElement(FillModal,{vehicleId:activeV,existing:editFill,onClose:()=>{setShowAdd(false);setEditFill(null);},onSave:saveFill,allFills:vFills}),
     (showAddPart||editPart)&&React.createElement(PartModal,{vehicleId:activeV,existing:editPart,onClose:()=>{setShowAddPart(false);setEditPart(null);},onSave:savePart}),
     (showAddService||editService)&&React.createElement(ServiceModal,{vehicleId:activeV,existing:editService,onClose:()=>{setShowAddService(false);setEditService(null);},onSave:saveService}),
     showVehicleEdit&&React.createElement(VehicleModal,{existing:showVehicleEdit.vehicle,onClose:()=>setShowVehicleEdit(null),onSave:saveVehicle}),
     showMonthlyReport&&React.createElement(MonthlyReport,{data,vehicleId:activeV,onClose:()=>setShowMonthlyReport(false)}),
+    showTutorial&&React.createElement(Tutorial,{onClose:dismissTutorial}),
+    showManual&&React.createElement(ManualModal,{onClose:()=>setShowManual(false)}),
+    showShare&&React.createElement(ShareReport,{data,vehicleId:activeV,onClose:()=>setShowShare(false)}),
+    showBadges&&React.createElement(BadgesModal,{data,vehicleId:activeV,onClose:()=>setShowBadges(false)}),
+    // Badge unlock popup (toast)
+    newBadgePopup&&React.createElement('div',{style:{
+      position:'fixed',top:'calc(var(--safe-top) + 12px)',left:16,right:16,
+      background:'linear-gradient(135deg,#1A1D2E,#232640)',
+      border:'1px solid var(--amber)',borderRadius:14,
+      padding:'12px 16px',zIndex:800,
+      display:'flex',alignItems:'center',gap:12,
+      boxShadow:'0 8px 32px rgba(0,0,0,.5)',
+      animation:'slideDown .4s ease'
+    }},
+      React.createElement('div',{style:{fontSize:32,flexShrink:0}},newBadgePopup.icon),
+      React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--amber)',textTransform:'uppercase',letterSpacing:'.5px'}},'🏆 Badge débloqué !'),
+        React.createElement('div',{style:{fontSize:14,fontWeight:700,color:'var(--text)',marginTop:2}},newBadgePopup.label),
+        React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)',marginTop:1}},newBadgePopup.desc)
+      )
+    ),
     (showAddGear||editGear)&&React.createElement(GearModal,{existing:editGear,onClose:()=>{setShowAddGear(false);setEditGear(null);},onSave:saveGear}),
     // Service alert popup
     (()=>{

@@ -2613,6 +2613,309 @@ function App(){
     );
   };
 
+  // ── ACHAT ──────────────────────────────────────────────────────────────────
+  const Tuning=()=>{
+    const getType=p=>p.partType||(p.isMaintenance?'maintenance':'tuning');
+    const tuningParts=vParts.filter(p=>getType(p)==='tuning');
+    const maintParts=vParts.filter(p=>getType(p)==='maintenance');
+    const cleanParts=vParts.filter(p=>getType(p)==='cleaning');
+    const parkParts=vParts.filter(p=>getType(p)==='parking');
+    const totalTuning=tuningParts.reduce((a,p)=>a+p.price,0);
+    const totalMaint=maintParts.reduce((a,p)=>a+p.price,0);
+    const totalClean=cleanParts.reduce((a,p)=>a+p.price,0);
+    const totalPark=parkParts.reduce((a,p)=>a+p.price,0);
+    const purchPrice=vehicle?.purchasePrice;
+    const grandTotal=purchPrice!=null?totalTuning+purchPrice:null;
+    const filtered=tuningFilter==='tuning'?tuningParts:tuningFilter==='maintenance'?maintParts:tuningFilter==='cleaning'?cleanParts:tuningFilter==='parking'?parkParts:vParts;
+    const cdTuning=groupByParts(vParts,tuningPeriod);
+    const cdTuningOnly=groupByParts(tuningParts,tuningPeriod);
+    const cdMaintOnly=groupByParts(maintParts,tuningPeriod);
+    const cdCleanOnly=groupByParts(cleanParts,tuningPeriod);
+    const cdParkOnly=groupByParts(parkParts,tuningPeriod);
+    const periodTotalAchat=+cdTuning.reduce((a,d)=>a+d.total,0).toFixed(2);
+    return React.createElement('div',{className:'page-wrap'},
+      React.createElement('div',{className:'page-header'},
+        React.createElement('div',null,React.createElement('div',{className:'page-title'},'🛒 Achat'),React.createElement('div',{className:'page-subtitle'},vParts.length+' entrée'+(vParts.length!==1?'s':''))),
+        addBtn(()=>setShowAddPart(true),'var(--purple)')
+      ),
+      React.createElement(VehicleBar),
+      React.createElement('div',{className:'tuning-banner'},
+        React.createElement('div',{className:'tuning-banner-col left'},React.createElement('div',{className:'tb-val',style:{color:'var(--purple)'}},totalTuning.toFixed(2)+' CHF'),React.createElement('div',{className:'tb-lbl'},'Achat')),
+        React.createElement('div',{className:'tuning-banner-col mid'},React.createElement('div',{className:'tb-val',style:{color:'var(--amber)'}},purchPrice!=null?fmtNum(purchPrice)+' CHF':'–'),React.createElement('div',{className:'tb-lbl'},'Prix achat')),
+        React.createElement('div',{className:'tuning-banner-col right'},React.createElement('div',{className:'tb-val',style:{color:'var(--green)'}},grandTotal!=null?fmtNum(grandTotal)+' CHF':'–'),React.createElement('div',{className:'tb-lbl'},'Total investi'))
+      ),
+      (maintParts.length>0||cleanParts.length>0||parkParts.length>0)&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat('+([maintParts.length>0,cleanParts.length>0,parkParts.length>0].filter(Boolean).length)+',1fr)',gap:8,margin:'0 20px 12px'}},
+        maintParts.length>0&&React.createElement('div',{style:{background:'rgba(249,115,22,.08)',border:'1px solid rgba(249,115,22,.2)',borderRadius:14,padding:'12px 14px'}},React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase'}},'🛠 Maintenance'),React.createElement('div',{style:{fontSize:18,fontWeight:700,color:'var(--orange)',fontVariantNumeric:'tabular-nums',marginTop:4}},totalMaint.toFixed(2)+' CHF'),React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)',marginTop:2}},maintParts.length+' opération'+(maintParts.length>1?'s':''))),
+        cleanParts.length>0&&React.createElement('div',{style:{background:'rgba(6,182,212,.08)',border:'1px solid rgba(6,182,212,.2)',borderRadius:14,padding:'12px 14px'}},React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase'}},'🧽 Nettoyage'),React.createElement('div',{style:{fontSize:18,fontWeight:700,color:'#06B6D4',fontVariantNumeric:'tabular-nums',marginTop:4}},totalClean.toFixed(2)+' CHF'),React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)',marginTop:2}},cleanParts.length+' lavage'+(cleanParts.length>1?'s':''))),
+        parkParts.length>0&&React.createElement('div',{style:{background:'rgba(99,102,241,.08)',border:'1px solid rgba(99,102,241,.2)',borderRadius:14,padding:'12px 14px'}},React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase'}},'🅿️ Parking'),React.createElement('div',{style:{fontSize:18,fontWeight:700,color:'#6366F1',fontVariantNumeric:'tabular-nums',marginTop:4}},totalPark.toFixed(2)+' CHF'),React.createElement('div',{style:{fontSize:11,color:'var(--text-dim)',marginTop:2}},parkParts.length+' entrée'+(parkParts.length>1?'s':'')))
+      ),
+      vParts.length>1&&React.createElement('div',{className:'card'},
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
+          React.createElement('div',{className:'card-title',style:{margin:0}},'Dépenses dans le temps'),
+          React.createElement('div',{style:{display:'flex',gap:4,flexWrap:'wrap'}},PERIODS.map(p=>React.createElement('button',{key:p.id,className:'period-btn '+(tuningPeriod===p.id?'active':''),style:{padding:'3px 8px',fontSize:10},onClick:()=>setTuningPeriod(p.id)},p.label)))
+        ),
+        React.createElement('div',{style:{display:'flex',gap:12,marginBottom:8,flexWrap:'wrap'}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'var(--text-dim)'}},React.createElement('div',{style:{width:8,height:8,borderRadius:2,background:'#A855F7'}}),'🔧 Pièce'),
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'var(--text-dim)'}},React.createElement('div',{style:{width:8,height:8,borderRadius:2,background:'#F97316'}}),'🛠 Maintenance'),
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'var(--text-dim)'}},React.createElement('div',{style:{width:8,height:8,borderRadius:2,background:'#06B6D4'}}),'🧽 Nettoyage')
+        ),
+        React.createElement(BarChartStacked3,{dataA:cdTuningOnly,dataB:cdMaintOnly,dataC:cdCleanOnly,dataD:cdParkOnly,period:tuningPeriod,height:130}),
+        cdTuning.length>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)'}},
+          React.createElement('div',{style:{fontSize:12,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.5px'}},(PERIODS.find(p=>p.id===tuningPeriod)||PERIODS[1]).label),
+          React.createElement('span',{style:{fontSize:20,fontWeight:700,fontVariantNumeric:'tabular-nums',color:'#A855F7'}},periodTotalAchat.toFixed(2)+' CHF')
+        )
+      ),
+      React.createElement('div',{className:'inner-tabs',style:{flexWrap:'wrap'}},
+        React.createElement('button',{className:'inner-tab '+(tuningFilter==='all'?'active':''),onClick:()=>setTuningFilter('all')},'Tout ('+vParts.length+')'),
+        React.createElement('button',{className:'inner-tab '+(tuningFilter==='tuning'?'active':''),onClick:()=>setTuningFilter('tuning')},'🔧 Pièce ('+tuningParts.length+')'),
+        React.createElement('button',{className:'inner-tab maint '+(tuningFilter==='maintenance'?'active':''),onClick:()=>setTuningFilter('maintenance')},'🛠 Maint. ('+maintParts.length+')'),
+        React.createElement('button',{className:'inner-tab '+(tuningFilter==='cleaning'?'active':''),style:tuningFilter==='cleaning'?{background:'#06B6D4',borderColor:'#06B6D4',color:'#fff'}:{},onClick:()=>setTuningFilter('cleaning')},'🧽 Nettoyage ('+cleanParts.length+')'),
+        React.createElement('button',{className:'inner-tab '+(tuningFilter==='parking'?'active':''),style:tuningFilter==='parking'?{background:'#6366F1',borderColor:'#6366F1',color:'#fff'}:{},onClick:()=>setTuningFilter('parking')},'🅿️ Parking ('+parkParts.length+')')
+      ),
+      filtered.length===0
+        ?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},tuningFilter==='maintenance'?'🛠':tuningFilter==='cleaning'?'🧽':tuningFilter==='parking'?'🅿️':'🔧'),React.createElement('div',{className:'empty-title'},'Aucune entrée'),React.createElement('div',{className:'empty-desc'},'Appuyez sur + pour ajouter.'))
+        :filtered.map(p=>{
+          const pt=getType(p);
+          const isMaint=pt==='maintenance';
+          const isClean=pt==='cleaning';
+          const isParkItem=pt==='parking';
+          const doneItems=SERVICE_ITEMS_ALL.filter(i=>(p.checks||[]).includes(i.id));
+          const ct=isClean?(CLEANING_TYPES[p.cleaningType]||CLEANING_TYPES.quick):null;
+          const iconBg=isMaint?'rgba(249,115,22,.1)':isClean?'rgba(6,182,212,.1)':isParkItem?'rgba(99,102,241,.1)':'rgba(168,85,247,.1)';
+          const iconBorder=isMaint?'rgba(249,115,22,.2)':isClean?'rgba(6,182,212,.2)':isParkItem?'rgba(99,102,241,.2)':'rgba(168,85,247,.2)';
+          const costColor=isMaint?'var(--orange)':isClean?'#06B6D4':isParkItem?'#6366F1':'var(--purple)';
+          const typeLabel=isMaint?'Maintenance':isClean?'Nettoyage':isParkItem?'Parking':'Achat';
+          return React.createElement('div',{key:p.id,className:'part-item'},
+            React.createElement('div',{className:'part-icon',style:{background:iconBg,border:'1px solid '+iconBorder}},isMaint?'🛠':isClean?(ct?.emoji||'🧽'):isParkItem?((PARKING_TYPES[p.parkingType]||PARKING_TYPES.other).emoji):'🔧'),
+            React.createElement('div',{className:'fill-main'},
+              React.createElement('div',{className:'fill-date'},fmtDate(p.date)+' · '+typeLabel),
+              React.createElement('div',{className:'fill-title'},p.name),
+              isMaint&&doneItems.length>0&&React.createElement('div',{style:{marginTop:6,display:'flex',flexDirection:'column',gap:3}},
+                doneItems.map(item=>React.createElement('div',{key:item.id,style:{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12}},
+                  React.createElement('span',{style:{color:'var(--text-dim)',display:'flex',alignItems:'center',gap:4}},React.createElement('span',{style:{color:'var(--orange)',fontSize:10}},'✓'),item.label),
+                  p.itemPrices&&p.itemPrices[item.id]?React.createElement('span',{style:{color:'var(--orange)',fontWeight:600,fontVariantNumeric:'tabular-nums'}},parseFloat(p.itemPrices[item.id]).toFixed(2)+' CHF'):React.createElement('span',{style:{color:'var(--text-muted)'}},'–')
+                ))
+              ),
+              isMaint&&(p.customItems||[]).length>0&&React.createElement('div',{style:{marginTop:4,display:'flex',flexDirection:'column',gap:3}},
+                (p.customItems||[]).map((ci,idx)=>React.createElement('div',{key:idx,style:{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12}},
+                  React.createElement('span',{style:{color:'var(--text-dim)',display:'flex',alignItems:'center',gap:4}},React.createElement('span',{style:{color:'var(--orange)',fontSize:10}},'✓'),ci.name),
+                  parseFloat(ci.price)>0?React.createElement('span',{style:{color:'var(--orange)',fontWeight:600,fontVariantNumeric:'tabular-nums'}},parseFloat(ci.price).toFixed(2)+' CHF'):React.createElement('span',{style:{color:'var(--text-muted)'}},'–')
+                ))
+              ),
+              p.note&&React.createElement('div',{className:'fill-meta',style:{marginTop:4}},p.note),
+              React.createElement('div',{className:'actions-row'},
+                React.createElement('button',{className:'btn-edit',onClick:()=>setEditPart(p)},'✏️ Modifier'),
+                React.createElement('button',{className:'btn-danger',onClick:()=>setConfirm({msg:'Supprimer "'+p.name+'" ?',cb:()=>setData(d=>({...d,parts:(d.parts||[]).filter(x=>x.id!==p.id)}))})}, '🗑 Supprimer')
+              )
+            ),
+            React.createElement('div',{className:'fill-cost'},React.createElement('div',{style:{fontSize:16,fontWeight:700,fontVariantNumeric:'tabular-nums',color:costColor}},p.price.toFixed(2)),React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)'}},'CHF'))
+          );
+        })
+    );
+  };
+
+  // ── ÉQUIPEMENT ────────────────────────────────────────────────────────────
+  const Gear=()=>{
+    const allGear=(data.gear||[]).sort((a,b)=>b.date.localeCompare(a.date));
+    const filtered=gearFilter==='all'?allGear:allGear.filter(g=>g.category===gearFilter);
+    const total=allGear.reduce((a,g)=>a+g.price,0);
+    const catTotals={};
+    allGear.forEach(g=>{catTotals[g.category]=(catTotals[g.category]||0)+g.price;});
+    const usedCats=Object.keys(catTotals).filter(c=>catTotals[c]>0);
+    return React.createElement('div',{className:'page-wrap'},
+      React.createElement('div',{className:'page-header'},
+        React.createElement('div',null,React.createElement('div',{className:'page-title'},'🎒 Équipement'),React.createElement('div',{className:'page-subtitle'},allGear.length+' article'+(allGear.length!==1?'s':'')+' · hors véhicule')),
+        addBtn(()=>setShowAddGear(true),'#EC4899')
+      ),
+      allGear.length>0&&React.createElement('div',{style:{margin:'0 20px 12px',borderRadius:14,border:'1px solid rgba(236,72,153,.25)',background:'rgba(236,72,153,.06)',padding:'16px',textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.6px',marginBottom:6}},'💰 Total équipement'),
+        React.createElement('div',{style:{fontSize:28,fontWeight:700,color:'#EC4899',fontVariantNumeric:'tabular-nums'}},total.toFixed(2)+' CHF')
+      ),
+      allGear.length>0&&React.createElement('div',{style:{padding:'0 20px 12px',display:'flex',gap:8,overflowX:'auto',WebkitOverflowScrolling:'touch'}},
+        React.createElement('button',{className:'inner-tab '+(gearFilter==='all'?'active':''),style:{flexShrink:0},onClick:()=>setGearFilter('all')},'Tout ('+allGear.length+')'),
+        usedCats.map(catId=>{const c=GEAR_CATEGORIES[catId];const count=allGear.filter(g=>g.category===catId).length;const sel=gearFilter===catId;return React.createElement('button',{key:catId,onClick:()=>setGearFilter(catId),style:{flexShrink:0,padding:'6px 14px',borderRadius:20,border:'1px solid '+(sel?c.color:'var(--border)'),background:sel?c.color:'none',color:sel?'#fff':'var(--text-dim)',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}},c.emoji+' '+c.label+' ('+count+')');})
+      ),
+      filtered.length===0
+        ?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'🎒'),React.createElement('div',{className:'empty-title'},allGear.length===0?'Aucun équipement':'Aucun article dans cette catégorie'),React.createElement('div',{className:'empty-desc'},"Casque, gants, cardo, bagagerie…"))
+        :filtered.map(g=>{
+          const cat=GEAR_CATEGORIES[g.category]||GEAR_CATEGORIES.other;
+          return React.createElement('div',{key:g.id,className:'part-item'},
+            React.createElement('div',{className:'part-icon',style:{background:cat.color+'18',border:'1px solid '+cat.color+'33',fontSize:18}},cat.emoji),
+            React.createElement('div',{className:'fill-main'},
+              React.createElement('div',{className:'fill-date'},fmtDate(g.date)+' · '+cat.label),
+              React.createElement('div',{className:'fill-title'},g.name),
+              g.note&&React.createElement('div',{className:'fill-meta'},g.note),
+              React.createElement('div',{className:'actions-row'},
+                React.createElement('button',{className:'btn-edit',onClick:()=>setEditGear(g)},'✏️ Modifier'),
+                React.createElement('button',{className:'btn-danger',onClick:()=>setConfirm({msg:'Supprimer "'+g.name+'" ?',cb:()=>setData(d=>({...d,gear:(d.gear||[]).filter(x=>x.id!==g.id)}))})}, '🗑 Supprimer')
+              )
+            ),
+            React.createElement('div',{className:'fill-cost'},React.createElement('div',{style:{fontSize:16,fontWeight:700,fontVariantNumeric:'tabular-nums',color:cat.color}},g.price.toFixed(2)),React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)'}},'CHF'))
+          );
+        })
+    );
+  };
+
+  // ── SERVICE ───────────────────────────────────────────────────────────────
+  const Service=()=>{
+    const status=calcServiceStatus(vehicle,vServices,vFills);
+    const hasInterval=!!(vehicle?.serviceIntervalKm||vehicle?.serviceIntervalMonths);
+    const PBar=({pct,color})=>React.createElement('div',{style:{height:4,background:'var(--border)',borderRadius:2,marginTop:8,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',borderRadius:2,width:Math.min(100,pct*100).toFixed(1)+'%',background:color,transition:'width .5s'}}));
+    return React.createElement('div',{className:'page-wrap'},
+      React.createElement('div',{className:'page-header'},React.createElement('div',null,React.createElement('div',{className:'page-title'},'🛠️ Service'),React.createElement('div',{className:'page-subtitle'},vServices.length+' service'+(vServices.length!==1?'s':'')+' enregistré'+(vServices.length!==1?'s':''))),addBtn(()=>setShowAddService(true),'var(--teal)')),
+      React.createElement(VehicleBar),
+      status&&(status.isUrgent||status.isWarning)&&React.createElement('div',{className:'service-alert '+(status.isUrgent?'urgent':'warning')},
+        React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:12}},
+          React.createElement('div',{style:{fontSize:28,flexShrink:0}},status.isUrgent?'🚨':'⚠️'),
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{className:'service-alert-title',style:{color:status.isUrgent?'var(--red)':'var(--amber)'}},status.isUrgent?'Service dépassé !':'Service bientôt dû'),
+            React.createElement('div',{className:'service-alert-sub',style:{color:status.isUrgent?'var(--red)':'var(--amber)'}},
+              [status.kmStatus&&(status.kmStatus.kmRemaining<=0?'Dépassé de '+Math.abs(Math.round(status.kmStatus.kmRemaining)).toLocaleString('fr-CH')+' km':Math.round(status.kmStatus.kmRemaining).toLocaleString('fr-CH')+' km restants'),status.moStatus&&(status.moStatus.monthsRemaining<=0?'Dépassé de '+Math.abs(status.moStatus.monthsRemaining)+' mois':status.moStatus.monthsRemaining+' mois restant'+(status.moStatus.monthsRemaining>1?'s':''))].filter(Boolean).join(' · ')
+            )
+          )
+        ),
+        status.kmStatus&&React.createElement('div',{className:'service-progress-bar'},React.createElement('div',{className:'service-progress-fill',style:{width:Math.min(100,status.kmStatus.pct*100).toFixed(1)+'%',background:status.isUrgent?'var(--red)':'var(--amber)'}}))
+      ),
+      hasInterval&&status&&React.createElement('div',{className:'service-next'},
+        React.createElement('div',{className:'service-next-title'},'📅 Prochain service'),
+        React.createElement('div',{className:'service-next-grid'},
+          status.kmStatus?React.createElement('div',{className:'service-next-col'},
+            React.createElement('div',{className:'service-next-val',style:{color:status.kmStatus.kmRemaining<=0?'var(--red)':status.kmStatus.kmRemaining<=1000?'var(--amber)':'var(--green)'}},status.kmStatus.kmRemaining<=0?'−'+Math.abs(Math.round(status.kmStatus.kmRemaining)).toLocaleString('fr-CH'):Math.round(status.kmStatus.kmRemaining).toLocaleString('fr-CH')),
+            React.createElement('div',{className:'service-next-lbl'},'km restants'),
+            React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:4}},'Prévu à '+status.kmStatus.nextKm.toLocaleString('fr-CH')+' km'),
+            React.createElement(PBar,{pct:status.kmStatus.pct,color:status.kmStatus.kmRemaining<=0?'var(--red)':status.kmStatus.kmRemaining<=1000?'var(--amber)':'var(--green)'})
+          ):null,
+          status.moStatus?React.createElement('div',{className:'service-next-col'},
+            React.createElement('div',{className:'service-next-val',style:{color:status.moStatus.monthsRemaining<=0?'var(--red)':status.moStatus.monthsRemaining<=1?'var(--amber)':'var(--green)'}},status.moStatus.monthsRemaining<=0?'−'+Math.abs(status.moStatus.monthsRemaining):''+status.moStatus.monthsRemaining),
+            React.createElement('div',{className:'service-next-lbl'},'mois restants'),
+            React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginTop:4}},'Prévu '+status.moStatus.nextDate.toLocaleDateString('fr-CH',{month:'short',year:'numeric'})),
+            React.createElement(PBar,{pct:status.moStatus.pct,color:status.moStatus.monthsRemaining<=0?'var(--red)':status.moStatus.monthsRemaining<=1?'var(--amber)':'var(--green)'})
+          ):null
+        ),
+        status.last
+          ?React.createElement('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)',fontSize:12,color:'var(--text-dim)',display:'flex',justifyContent:'space-between'}},React.createElement('span',null,'Dernier : '+fmtDate(status.last.date)),React.createElement('span',null,'à '+status.last.km.toLocaleString('fr-CH')+' km'))
+          :React.createElement('div',{style:{marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)',fontSize:11,color:'var(--text-muted)',textAlign:'center'}},'💡 Enregistrez votre premier service pour activer le compte à rebours')
+      ),
+      !hasInterval&&React.createElement('div',{style:{margin:'0 20px 12px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'12px 16px',fontSize:12,color:'var(--text-dim)',textAlign:'center'}},'⚙️ Définissez les intervalles dans ',React.createElement('strong',{style:{color:'var(--amber)'}},'Réglages → votre véhicule'),' pour activer les alertes.'),
+      React.createElement('div',{style:{padding:'4px 20px 8px',fontSize:12,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.7px'}},'📋 Historique des services'),
+      vServices.length===0
+        ?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'🛠️'),React.createElement('div',{className:'empty-title'},'Aucun service enregistré'),React.createElement('div',{className:'empty-desc'},'Appuyez sur + pour ajouter votre première révision.'))
+        :vServices.map(sv=>{
+          const done=SERVICE_ITEMS_ALL.filter(i=>sv.checks.includes(i.id));
+          return React.createElement('div',{key:sv.id,className:'service-item'},
+            React.createElement('div',{className:'service-header'},
+              React.createElement('div',null,React.createElement('div',{className:'service-km'},sv.km.toLocaleString('fr-CH')+' km'),React.createElement('div',{className:'service-date'},fmtDate(sv.date))),
+              React.createElement('div',{style:{display:'flex',gap:8}},
+                React.createElement('button',{onClick:()=>setEditService(sv),style:{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}},'✏️'),
+                React.createElement('button',{onClick:()=>setConfirm({msg:'Supprimer ce service ?',cb:()=>setData(d=>({...d,services:(d.services||[]).filter(x=>x.id!==sv.id)}))}),style:{background:'rgba(239,68,68,.1)',border:'1px solid rgba(239,68,68,.25)',borderRadius:8,width:32,height:32,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}},'🗑')
+              )
+            ),
+            done.length>0&&React.createElement('div',{className:'service-checks'},done.map(i=>React.createElement('span',{key:i.id,className:'check-badge check-done'},'✓ '+i.label))),
+            sv.note&&React.createElement('div',{className:'service-note'},sv.note)
+          );
+        })
+    );
+  };
+
+  // ── CHARTS ────────────────────────────────────────────────────────────────
+  const Charts=()=>{
+    const cd=groupBy(vFills,period);
+    const pInfo=PERIODS.find(x=>x.id===period)||PERIODS[1];
+    const periodLabel='sur les '+pInfo.label.toLowerCase();
+    const cdL100=cd.map(d=>({...d,l100km:d.totalKm>0?+((d.totalL/d.totalKm)*100).toFixed(2):0}));
+    const periodTotalChf=+cd.reduce((a,d)=>a+d.totalChf,0).toFixed(2);
+    const periodTotalL=+cd.reduce((a,d)=>a+d.totalL,0).toFixed(1);
+    const periodTotalKm=Math.round(cd.reduce((a,d)=>a+d.totalKm,0));
+    const periodAvgL100=periodTotalKm>0?+((periodTotalL/periodTotalKm)*100).toFixed(2):null;
+    const getBestWorst=(arr,key)=>{if(arr.length<2)return{best:null,worst:null};const sorted=[...arr].sort((a,b)=>a[key]-b[key]);return{best:sorted[0],worst:sorted[sorted.length-1]};};
+    const bwChf=getBestWorst(cd,'totalChf');
+    const bwL100=getBestWorst(cdL100.filter(d=>d.l100km>0),'l100km');
+    const allVehicles=data.vehicles;
+    const compData=allVehicles.map(v=>{const fills=data.fills.filter(f=>f.vehicleId===v.id);const st=calcStats(fills);return{v,st};});
+    const priceData=[...vFills].sort((a,b)=>a.date.localeCompare(b.date)).map(f=>({key:f.date,label:fmtDate(f.date),price:f.pricePerL,station:f.station,fuelType:f.fuelType}));
+    const costPerFill=[...vFills].sort((a,b)=>a.date.localeCompare(b.date)).map(f=>({key:f.date,total:+(f.pricePerL*f.quantity).toFixed(2),label:fmtDate(f.date)}));
+    const stFills=vFills.filter(f=>f.station);
+    const stMap={};
+    stFills.forEach(f=>{if(!stMap[f.station])stMap[f.station]={id:f.station,prices:[],total:0,count:0};stMap[f.station].prices.push(f.pricePerL);stMap[f.station].total+=f.pricePerL;stMap[f.station].count++;});
+    const stData=Object.values(stMap).map(s=>({...s,avg:+(s.total/s.count).toFixed(3),min:Math.min(...s.prices).toFixed(3),max:Math.max(...s.prices).toFixed(3)})).sort((a,b)=>a.avg-b.avg);
+    const stMaxAvg=stData.length?Math.max(...stData.map(s=>s.avg)):1;
+    const stGlobalAvg=stFills.length?+(stFills.reduce((a,f)=>a+f.pricePerL,0)/stFills.length).toFixed(3):0;
+    const TotalPill=({label,value,color,extra})=>React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)'}},React.createElement('div',{style:{fontSize:12,color:'var(--text-muted)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.5px'}},label),React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:5}},React.createElement('span',{style:{fontSize:20,fontWeight:700,fontVariantNumeric:'tabular-nums',color}},value),React.createElement('span',{style:{fontSize:11,color:'var(--text-muted)'}},extra)));
+    const LineChart=({data,height=140})=>{
+      const [tip,setTip]=useState(null);
+      if(data.length<2)return React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)',textAlign:'center',padding:20}},'Pas assez de pleins');
+      const vals=data.map(d=>d.price),maxV=Math.max(...vals)||1,minV=Math.min(...vals),range=maxV-minV||0.1;
+      const W=600,H=height,P={t:10,r:10,b:30,l:55},cW=W-P.l-P.r,cH=H-P.t-P.b;
+      const pts=data.map((d,i)=>({x:P.l+(i/(data.length-1||1))*cW,y:P.t+cH*(1-(d.price-minV)/range),d}));
+      const line=pts.map((p,i)=>(i===0?'M':'L')+p.x+','+p.y).join(' ');
+      const avgY=P.t+cH*(1-(vals.reduce((a,b)=>a+b,0)/vals.length-minV)/range);
+      return React.createElement('div',{style:{position:'relative'}},
+        React.createElement('svg',{viewBox:'0 0 '+W+' '+H,style:{width:'100%',display:'block'},onMouseLeave:()=>setTip(null)},
+          [minV,minV+range*.5,maxV].map((v,i)=>{const y=P.t+cH*(1-(v-minV)/range);return React.createElement('g',{key:i},React.createElement('line',{x1:P.l,y1:y,x2:W-P.r,y2:y,stroke:'#2D3250',strokeWidth:1}),React.createElement('text',{x:P.l-6,y:y+4,textAnchor:'end',fontSize:10,fill:'#475569'},v.toFixed(3)));},),
+          React.createElement('line',{x1:P.l,y1:avgY,x2:W-P.r,y2:avgY,stroke:'#F59E0B',strokeWidth:1,strokeDasharray:'4 3',opacity:.6}),
+          React.createElement('path',{d:line+' L'+pts[pts.length-1].x+','+(P.t+cH)+' L'+pts[0].x+','+(P.t+cH)+' Z',fill:'rgba(20,184,166,.12)'}),
+          React.createElement('path',{d:line,fill:'none',stroke:'var(--teal)',strokeWidth:2,strokeLinejoin:'round'}),
+          pts.map((p,i)=>React.createElement('g',{key:i},React.createElement('circle',{cx:p.x,cy:p.y,r:3.5,fill:p.d.fuelType==='SP98'?'#F59E0B':'#3B82F6',stroke:'var(--teal)',strokeWidth:1.5}),React.createElement('rect',{x:Math.max(P.l,p.x-20),y:P.t,width:40,height:cH,fill:'transparent',style:{cursor:'pointer'},onMouseEnter:()=>setTip(p.d)})))
+        ),
+        tip&&React.createElement('div',{style:{position:'absolute',top:8,left:'50%',transform:'translateX(-50%)',background:'#232640',border:'1px solid #2D3250',borderRadius:8,padding:'7px 12px',fontSize:12,pointerEvents:'none',whiteSpace:'nowrap',zIndex:10}},React.createElement('div',{style:{color:'#94A3B8',marginBottom:3}},tip.label),React.createElement('div',{style:{fontWeight:700,color:'var(--teal)'}},tip.price.toFixed(3)+' CHF/L'),React.createElement('div',{style:{fontSize:10,color:'#94A3B8',marginTop:2}},tip.fuelType+(tip.station?' · '+(STATIONS[tip.station]?.label||''):'')))
+      );
+    };
+    const CostBarChart=({data,height=130})=>{
+      const [tip,setTip]=useState(null);
+      if(!data.length)return null;
+      const maxV=Math.max(...data.map(d=>d.total))||1;
+      const bw=getBestWorst(data,'total');
+      const W=600,H=height,P={t:10,r:10,b:20,l:50},cW=W-P.l-P.r,cH=H-P.t-P.b;
+      const bW=Math.max(4,cW/data.length*.7),bGap=cW/data.length;
+      return React.createElement('div',{style:{position:'relative'}},
+        React.createElement('svg',{viewBox:'0 0 '+W+' '+H,style:{width:'100%',display:'block'}},
+          [0,.5,1].map((p,i)=>{const y=P.t+cH*(1-p);return React.createElement('g',{key:i},React.createElement('line',{x1:P.l,y1:y,x2:W-P.r,y2:y,stroke:'#2D3250',strokeWidth:1}),React.createElement('text',{x:P.l-6,y:y+4,textAnchor:'end',fontSize:10,fill:'#475569'},(maxV*p).toFixed(0)));},),
+          data.map((d,i)=>{const x=P.l+i*bGap+(bGap-bW)/2;const bH=Math.max(2,d.total/maxV*cH);const isBest=bw.best&&d.key===bw.best.key;const isWorst=bw.worst&&d.key===bw.worst.key;return React.createElement('g',{key:d.key,onMouseEnter:()=>setTip({...d,isBest,isWorst}),onMouseLeave:()=>setTip(null),style:{cursor:'pointer'}},React.createElement('rect',{x,y:P.t+cH-bH,width:bW,height:bH,fill:isBest?'#10B981':isWorst?'#EF4444':'#F59E0B',rx:2,opacity:.85}));})
+        ),
+        tip&&React.createElement('div',{style:{position:'absolute',top:8,left:'50%',transform:'translateX(-50%)',background:'#232640',border:'1px solid #2D3250',borderRadius:8,padding:'7px 12px',fontSize:12,pointerEvents:'none',whiteSpace:'nowrap',zIndex:10}},React.createElement('div',{style:{color:'#94A3B8',marginBottom:3}},tip.label),React.createElement('div',{style:{fontWeight:700,color:tip.isBest?'#10B981':tip.isWorst?'#EF4444':'#F59E0B'}},tip.total.toFixed(2)+' CHF'))
+      );
+    };
+    return React.createElement('div',{className:'page-wrap'},
+      React.createElement('div',{className:'page-header'},React.createElement('div',{className:'page-title'},'📊 Graphiques')),
+      React.createElement(VehicleBar),
+      React.createElement('div',{className:'period-toggle'},PERIODS.map(p=>React.createElement('button',{key:p.id,className:'period-btn '+(period===p.id?'active':''),onClick:()=>setPeriod(p.id)},p.label))),
+      vFills.length<2
+        ?React.createElement('div',{className:'empty'},React.createElement('div',{className:'empty-icon'},'📊'),React.createElement('div',{className:'empty-title'},'Pas assez de données'),React.createElement('div',{className:'empty-desc'},'Au moins 2 pleins nécessaires.'))
+        :React.createElement(React.Fragment,null,
+          React.createElement('div',{className:'card'},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},React.createElement('div',{className:'card-title',style:{margin:0}},'Dépenses (CHF)'),bwChf.best&&React.createElement('div',{style:{display:'flex',gap:8,fontSize:11}},React.createElement('span',{style:{color:'#10B981',fontWeight:600}},'✓ '+fmtKey(bwChf.best.key,period)),React.createElement('span',{style:{color:'#EF4444',fontWeight:600}},'↑ '+fmtKey(bwChf.worst.key,period)))),React.createElement(AreaChart,{data:cd,dataKey:'totalChf',color:'#F59E0B',period,unit:'CHF'}),React.createElement(TotalPill,{label:'Total '+periodLabel,value:periodTotalChf.toFixed(2),color:'#F59E0B',extra:'CHF'})),
+          React.createElement('div',{className:'card'},React.createElement('div',{className:'card-title'},'Prix CHF/L dans le temps'),React.createElement(LineChart,{data:priceData}),React.createElement(TotalPill,{label:'Prix moyen',value:(priceData.reduce((a,d)=>a+d.price,0)/Math.max(1,priceData.length)).toFixed(3),color:'var(--teal)',extra:'CHF/L'})),
+          React.createElement('div',{className:'card'},React.createElement('div',{className:'card-title'},'Coût par plein'),React.createElement(CostBarChart,{data:costPerFill}),React.createElement(TotalPill,{label:'Coût moyen',value:(costPerFill.reduce((a,d)=>a+d.total,0)/Math.max(1,costPerFill.length)).toFixed(2),color:'#F59E0B',extra:'CHF'})),
+          React.createElement('div',{className:'card'},React.createElement('div',{className:'card-title'},'Litres consommés'),React.createElement(BarChart,{data:cd,dataKey:'totalL',color:'#3B82F6',period,unit:'L'}),React.createElement(TotalPill,{label:'Total '+periodLabel,value:periodTotalL.toFixed(1),color:'#3B82F6',extra:'L'})),
+          React.createElement('div',{className:'card'},React.createElement('div',{className:'card-title'},'Kilomètres parcourus'),React.createElement(AreaChart,{data:cd,dataKey:'totalKm',color:'#10B981',period,unit:'km'}),React.createElement(TotalPill,{label:'Total '+periodLabel,value:periodTotalKm.toLocaleString('fr-CH'),color:'#10B981',extra:'km'})),
+          React.createElement('div',{className:'card'},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},React.createElement('div',{className:'card-title',style:{margin:0}},'Consommation L/100 km'),bwL100.best&&React.createElement('div',{style:{display:'flex',gap:8,fontSize:11}},React.createElement('span',{style:{color:'#10B981',fontWeight:600}},'✓ '+fmtKey(bwL100.best.key,period)),React.createElement('span',{style:{color:'#EF4444',fontWeight:600}},'↑ '+fmtKey(bwL100.worst.key,period)))),React.createElement(AreaChart,{data:cdL100,dataKey:'l100km',color:'#A855F7',period,unit:'L/100'}),periodAvgL100&&React.createElement(TotalPill,{label:'Moyenne '+periodLabel,value:''+periodAvgL100,color:'#A855F7',extra:'L/100 km'})),
+          stData.length>=2&&React.createElement('div',{className:'card'},
+            React.createElement('div',{className:'card-title'},'🏪 Prix moyen par station'),
+            React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
+              stData.map(s=>{const st2=STATIONS[s.id]||STATIONS.autre;const isLowest=s.id===stData[0].id;const barColor=isLowest?'var(--green)':s.avg>stGlobalAvg?'var(--red)':'var(--amber)';return React.createElement('div',{key:s.id},React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:4}},React.createElement(StationLogo,{id:s.id,size:26}),React.createElement('div',{style:{flex:1}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},React.createElement('span',{style:{fontSize:13,fontWeight:600}},st2.label),React.createElement('span',{style:{fontSize:14,fontWeight:700,color:barColor,fontVariantNumeric:'tabular-nums'}},s.avg+' CHF/L')),React.createElement('div',{style:{height:5,background:'var(--border)',borderRadius:3,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',borderRadius:3,background:barColor,width:Math.max(10,s.avg/stMaxAvg*100).toFixed(1)+'%'}}))),isLowest&&React.createElement('span',{style:{fontSize:10,color:'var(--green)',fontWeight:700}},'✓')),React.createElement('div',{style:{fontSize:10,color:'var(--text-muted)',marginLeft:36}},s.count+' plein'+(s.count>1?'s':'')+' · min '+s.min+' · max '+s.max));})
+            ),
+            React.createElement(TotalPill,{label:'Moyenne globale',value:''+stGlobalAvg,color:'var(--amber)',extra:'CHF/L'})
+          ),
+          allVehicles.length>1&&React.createElement('div',{className:'card'},
+            React.createElement('div',{className:'card-title'},'⚖️ Comparaison véhicules'),
+            React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:12}},
+              compData.map(({v,st})=>{
+                if(!st)return React.createElement('div',{key:v.id,style:{padding:'8px 0'}},React.createElement(VehicleIcon,{iconId:v.iconId,size:22}),' '+v.name+' — Aucune donnée');
+                const maxChf=Math.max(...compData.filter(x=>x.st).map(x=>x.st.totalChf))||1;
+                return React.createElement('div',{key:v.id,style:{paddingTop:10,borderTop:'1px solid var(--border)'}},
+                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},React.createElement(VehicleIcon,{iconId:v.iconId,size:22}),React.createElement('span',{style:{fontWeight:700}},v.name),React.createElement('span',{style:{marginLeft:'auto',fontSize:12,color:'var(--text-dim)'}},st.count+' plein'+(st.count>1?'s':''))),
+                  React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:6}},
+                    [{l:'CHF',v:''+st.totalChf,c:'var(--amber)'},{l:'Km',v:st.totalKm.toLocaleString('fr-CH'),c:'var(--green)'},{l:'L',v:''+st.totalL,c:'var(--blue)'},{l:'L/100',v:st.avgL100?''+st.avgL100:'–',c:st.avgL100>8?'var(--red)':st.avgL100>6?'var(--amber)':'var(--green)'}].map((item,i)=>React.createElement('div',{key:i,style:{background:'var(--surface2)',borderRadius:8,padding:'7px 6px',textAlign:'center'}},React.createElement('div',{style:{fontSize:13,fontWeight:700,color:item.c,fontVariantNumeric:'tabular-nums'}},item.v),React.createElement('div',{style:{fontSize:9,color:'var(--text-muted)',marginTop:2,textTransform:'uppercase'}},item.l)))
+                  ),
+                  React.createElement('div',{style:{marginTop:6,height:4,background:'var(--border)',borderRadius:2,overflow:'hidden'}},React.createElement('div',{style:{height:'100%',borderRadius:2,background:'var(--amber)',width:(st.totalChf/maxChf*100).toFixed(1)+'%'}}))
+                );
+              })
+            )
+          )
+        )
+    );
+  };
+
+
   const navItems=[
     {id:'dashboard',icon:'🏠',label:'Accueil'},
     {id:'tuning',icon:'🛒',label:'Achat'},

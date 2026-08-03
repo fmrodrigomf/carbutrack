@@ -861,12 +861,10 @@ const calcRecords=(fills)=>{
   };
 };
 
-function FillModal({vehicleId,existing,onClose,onSave,allFills=[]}){
+function FillModal({vehicleId,existing,onClose,onSave,allFills=[],vehicle=null}){
   const today=new Date().toISOString().slice(0,10);
-  // Smart defaults: learn from past fills at each station
   const getSmartDefaults=()=>{
     if(!allFills.length) return{fuelType:'SP95',station:null};
-    // Most recent fill
     const last=allFills[0];
     return{fuelType:last.fuelType||'SP95',station:last.station||null};
   };
@@ -882,44 +880,94 @@ function FillModal({vehicleId,existing,onClose,onSave,allFills=[]}){
   const [f,setF]=useState(existing
     ?{date:existing.date,pricePerL:existing.pricePerL,quantity:existing.quantity,fuelType:existing.fuelType,km:existing.km,note:existing.note||'',station:existing.station||null}
     :{date:today,pricePerL:'',quantity:'',fuelType:smartDef.fuelType,km:'',note:'',station:smartDef.station});
+  const [kmMode,setKmMode]=useState('parcourus'); // 'parcourus' | 'compteur'
+  const [compteurVal,setCompteurVal]=useState('');
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
-  const total=f.pricePerL&&f.quantity?(+f.pricePerL * +f.quantity).toFixed(2):null;
-  const l100=f.quantity&&f.km&&+f.km>0?((+f.quantity/+f.km)*100).toFixed(2):null;
-  const chfkm=total&&f.km&&+f.km>0?(+total/+f.km).toFixed(4):null;
-  const save=()=>{if(!f.date||!f.pricePerL||!f.quantity||!f.km){alert('Remplissez tous les champs.');return;}onSave({id:existing?.id||uid(),vehicleId,date:f.date,pricePerL:+f.pricePerL,quantity:+f.quantity,fuelType:f.fuelType,km:+f.km,note:f.note,station:f.station});onClose();};
+
+  // Km compteur au dernier plein enregistré
+  // = km de départ véhicule + extraKm + tous les km parcourus enregistrés
+  const baseKm=(vehicle?.purchaseKm||0)+(vehicle?.extraKm||0);
+  const trackedKmTotal=allFills.length>0
+    ?baseKm+[...allFills].sort((a,b)=>a.date.localeCompare(b.date)).reduce((acc,x)=>acc+x.km,0)
+    :baseKm||null;
+
+  // Km parcourus depuis le dernier plein = compteur saisi - km compteur au dernier plein
+  const kmFromCompteur=(compteurVal!==''&&trackedKmTotal!=null&&+compteurVal>trackedKmTotal)
+    ?Math.round(+compteurVal-trackedKmTotal)
+    :null;
+
+  // Km effectif pour preview
+  const effectiveKm=kmMode==='parcourus'?(f.km!==''?+f.km:null):kmFromCompteur;
+
+  const total=f.pricePerL&&f.quantity?(+f.pricePerL*+f.quantity).toFixed(2):null;
+  const l100=f.quantity&&effectiveKm&&effectiveKm>0?((+f.quantity/effectiveKm)*100).toFixed(2):null;
+  const chfkm=total&&effectiveKm&&effectiveKm>0?(+total/effectiveKm).toFixed(4):null;
+
+  const save=()=>{
+    if(!f.date||!f.pricePerL||!f.quantity){alert('Remplissez la date, le prix et la quantité.');return;}
+    let finalKm;
+    if(kmMode==='parcourus'){
+      if(f.km===''||+f.km<=0){alert('Remplissez les km parcourus.');return;}
+      finalKm=Math.round(+f.km*10)/10; // garde 1 décimale max, évite les 197.9999
+    } else {
+      if(compteurVal===''||+compteurVal<=0){alert('Remplissez le km affiché sur le compteur.');return;}
+      if(trackedKmTotal===null||trackedKmTotal===0){alert('Définissez le km de départ dans Réglages ou utilisez le mode Km parcourus.');return;}
+      if(kmFromCompteur===null||kmFromCompteur<=0){alert('Le km compteur doit être supérieur au compteur du dernier plein ('+Math.round(trackedKmTotal).toLocaleString('fr-CH')+' km).');return;}finalKm=kmFromCompteur;
+    }
+    onSave({id:existing?.id||uid(),vehicleId,date:f.date,pricePerL:+f.pricePerL,quantity:+f.quantity,fuelType:f.fuelType,km:finalKm,note:f.note,station:f.station});
+    onClose();
+  };
+
   return React.createElement(Modal,{title:existing?'✏️ Modifier le plein':'⛽ Nouveau plein',onClose},
     React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Date *'),React.createElement('input',{type:'date',className:'form-input',value:f.date,onChange:e=>set('date',e.target.value)})),
     React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Carburant'),React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:6}},
-        ['SP95','SP98','Diesel','Diesel+'].map(ft=>React.createElement('button',{key:ft,type:'button',onClick:()=>set('fuelType',ft),style:{padding:'10px 4px',borderRadius:8,border:'2px solid '+(f.fuelType===ft?'currentColor':'var(--border)'),background:f.fuelType===ft?(ft==='SP95'?'rgba(59,130,246,.15)':ft==='SP98'?'rgba(245,158,11,.15)':ft==='Diesel'?'rgba(16,185,129,.15)':'rgba(168,85,247,.15)'):'none',color:ft==='SP95'?'#60A5FA':ft==='SP98'?'var(--amber)':ft==='Diesel'?'#34D399':'#C084FC',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all .15s'}},ft)))),
-    // Station selector
+      ['SP95','SP98','Diesel','Diesel+'].map(ft=>React.createElement('button',{key:ft,type:'button',onClick:()=>set('fuelType',ft),style:{padding:'10px 4px',borderRadius:8,border:'2px solid '+(f.fuelType===ft?'currentColor':'var(--border)'),background:f.fuelType===ft?(ft==='SP95'?'rgba(59,130,246,.15)':ft==='SP98'?'rgba(245,158,11,.15)':ft==='Diesel'?'rgba(16,185,129,.15)':'rgba(168,85,247,.15)'):'none',color:ft==='SP95'?'#60A5FA':ft==='SP98'?'var(--amber)':ft==='Diesel'?'#34D399':'#C084FC',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all .15s'}},ft)))),
     React.createElement('div',{className:'form-section'},
       React.createElement('label',{className:'form-label'},'Station'),
       React.createElement('div',{className:'station-grid'},
         Object.entries(STATIONS).map(([id,s])=>{
           const sel=f.station===id;
-          return React.createElement('div',{key:id,className:`station-opt ${sel?'selected':''}`,style:{borderColor:sel?s.bg:'var(--border)'},onClick:()=>{
-                const newStation=sel?null:id;
-                set('station',newStation);
-                if(newStation){
-                  const pref=getPreferredFuelForStation(newStation);
-                  if(pref) set('fuelType',pref);
-                }
-              }},
-            React.createElement(StationLogo,{id,size:34}),
-            React.createElement('span',{className:'station-opt-name'},s.label)
-          );
+          return React.createElement('div',{key:id,className:'station-opt '+(sel?'selected':''),style:{borderColor:sel?s.bg:'var(--border)'},onClick:()=>{
+            const newStation=sel?null:id;
+            set('station',newStation);
+            if(newStation){const pref=getPreferredFuelForStation(newStation);if(pref)set('fuelType',pref);}
+          }},React.createElement(StationLogo,{id,size:34}),React.createElement('span',{className:'station-opt-name'},s.label));
         })
       )
     ),
     React.createElement('div',{className:'form-section'},React.createElement('div',{className:'form-row'},React.createElement('div',null,React.createElement('label',{className:'form-label'},'Prix CHF/L *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.001',className:'form-input',placeholder:'1.850',value:f.pricePerL,onChange:e=>set('pricePerL',e.target.value)})),React.createElement('div',null,React.createElement('label',{className:'form-label'},'Quantité L *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.01',className:'form-input',placeholder:'45.00',value:f.quantity,onChange:e=>set('quantity',e.target.value)})))),
-    React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Km parcourus *'),React.createElement('input',{type:'number',inputMode:'decimal',step:'0.1',className:'form-input',placeholder:'ex: 450.5',value:f.km,onChange:e=>set('km',e.target.value)})),
+
+    // ── Km toggle ──
+    React.createElement('div',{className:'form-section'},
+      React.createElement('label',{className:'form-label'},'Kilométrage'),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:10}},
+        React.createElement('button',{type:'button',onClick:()=>setKmMode('parcourus'),style:{padding:'9px',borderRadius:8,border:'2px solid '+(kmMode==='parcourus'?'var(--amber)':'var(--border)'),background:kmMode==='parcourus'?'rgba(245,158,11,.12)':'none',color:kmMode==='parcourus'?'var(--amber)':'var(--text-dim)',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all .15s'}},
+          React.createElement('div',null,'📏 Km parcourus'),
+          React.createElement('div',{style:{fontSize:10,fontWeight:400,marginTop:2,opacity:.8}},'depuis le dernier plein')
+        ),
+        React.createElement('button',{type:'button',onClick:()=>setKmMode('compteur'),style:{padding:'9px',borderRadius:8,border:'2px solid '+(kmMode==='compteur'?'#10B981':'var(--border)'),background:kmMode==='compteur'?'rgba(16,185,129,.12)':'none',color:kmMode==='compteur'?'#10B981':'var(--text-dim)',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all .15s'}},
+          React.createElement('div',null,'🔢 Km compteur'),
+          React.createElement('div',{style:{fontSize:10,fontWeight:400,marginTop:2,opacity:.8}},'total affiché sur le tableau')
+        )
+      ),
+      kmMode==='parcourus'
+        ?React.createElement('input',{type:'number',inputMode:'decimal',step:'0.1',className:'form-input',placeholder:'ex: 450.5',value:f.km,onChange:e=>set('km',e.target.value)})
+        :React.createElement(React.Fragment,null,
+          React.createElement('input',{type:'number',inputMode:'decimal',step:'1',className:'form-input',placeholder:'ex: 15420',value:compteurVal,onChange:e=>setCompteurVal(e.target.value)}),
+          trackedKmTotal!=null&&React.createElement('div',{style:{marginTop:8,padding:'8px 12px',background:'var(--surface2)',borderRadius:8,fontSize:12,color:'var(--text-dim)',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+            React.createElement('span',null,'Compteur au dernier plein : '+(trackedKmTotal!=null?Math.round(trackedKmTotal).toLocaleString('fr-CH')+' km':'non défini')),
+            kmFromCompteur!=null&&kmFromCompteur>0&&React.createElement('span',{style:{fontWeight:700,color:'#10B981'}},'+'+kmFromCompteur.toLocaleString('fr-CH')+' km parcourus')
+          ),
+          trackedKmTotal===null&&React.createElement('div',{style:{marginTop:6,fontSize:11,color:'var(--red)'}}, '⚠️ Premier plein : utilisez le mode Km parcourus')
+        )
+    ),
     React.createElement('div',{className:'form-section'},React.createElement('label',{className:'form-label'},'Note'),React.createElement('input',{type:'text',className:'form-input',placeholder:'Optionnel…',value:f.note,onChange:e=>set('note',e.target.value)})),
     (total||l100)&&React.createElement('div',{className:'modal-preview'},
-      total&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#F59E0B'}},`${total} CHF`),React.createElement('div',{className:'preview-lbl'},'Total')),
-      l100&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#3B82F6'}},`${l100} L`),React.createElement('div',{className:'preview-lbl'},'L/100km')),
-      chfkm&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#10B981'}},chfkm),React.createElement('div',{className:'preview-lbl'},'CHF/km')),
+      total&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#F59E0B'}},total+' CHF'),React.createElement('div',{className:'preview-lbl'},'Total')),
+      l100&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#3B82F6'}},l100+' L'),React.createElement('div',{className:'preview-lbl'},'L/100km')),
+      chfkm&&React.createElement('div',{className:'preview-item'},React.createElement('div',{className:'preview-val',style:{color:'#10B981'}},chfkm),React.createElement('div',{className:'preview-lbl'},'CHF/km'))
     ),
-    React.createElement('div',{className:'form-section'},React.createElement('button',{className:'btn-primary',onClick:save},existing?'Enregistrer':'⛽ Enregistrer le plein')),
+    React.createElement('div',{className:'form-section'},React.createElement('button',{type:'button',className:'btn-primary',onClick:save},existing?'Enregistrer':'⛽ Enregistrer le plein'))
   );
 }
 
@@ -1379,7 +1427,7 @@ function Settings({data,exportData,importRef,setData,defState,setShowVehicleEdit
     React.createElement('div',{className:'card'},
       React.createElement('div',{className:'card-title'},'À propos'),
       React.createElement('div',{style:{fontSize:13,color:'var(--text-dim)',lineHeight:1.8,marginBottom:14}},
-        'CarbuTrack v6.2.1',React.createElement('br'),
+        'CarbuTrack v6.2.9',React.createElement('br'),
         React.createElement('strong',{style:{color:'var(--text)'}},'📱 iPhone : '),
         'Safari → Partager → Sur l\'écran d\'accueil',React.createElement('br'),
         React.createElement('strong',{style:{color:'var(--text)'}},'💻 Windows : '),
@@ -2263,6 +2311,9 @@ function App(){
   useEffect(()=>{saveData(data);},[data]);
   useEffect(()=>{if(!data.vehicles.find(v=>v.id===activeV)&&data.vehicles.length>0)setActiveV(data.vehicles[0].id);},[data.vehicles]);
 
+
+  const vehicle=data.vehicles.find(v=>v.id===activeV);
+
   // ── Badge unlock detection: reset ref on vehicle change ──
   useEffect(()=>{
     // Reset when vehicle changes — prevents re-triggering existing badges
@@ -2287,7 +2338,6 @@ function App(){
   const vParts=(data.parts||[]).filter(p=>p.vehicleId===activeV).sort((a,b)=>b.date.localeCompare(a.date));
   const vServices=(data.services||[]).filter(s=>s.vehicleId===activeV).sort((a,b)=>b.date.localeCompare(a.date));
   const stats=calcStats(vFills);
-  const vehicle=data.vehicles.find(v=>v.id===activeV);
 
   const saveFill=fill=>setData(d=>({...d,fills:d.fills.find(f=>f.id===fill.id)?d.fills.map(f=>f.id===fill.id?fill:f):[fill,...d.fills]}));
   const savePart=part=>setData(d=>({...d,parts:(d.parts||[]).find(p=>p.id===part.id)?(d.parts||[]).map(p=>p.id===part.id?part:p):[part,...(d.parts||[])]}));
@@ -2594,7 +2644,7 @@ function App(){
                   React.createElement('div',{className:'fill-main'},
                     React.createElement('div',{className:'fill-date'},fmtDate(f.date)+(st?' · '+st.label:'')),
                     React.createElement('div',{className:'fill-title'},React.createElement('span',{className:'fuel-badge fuel-'+f.fuelType.toLowerCase(),style:{marginRight:6}},f.fuelType),f.quantity+' L · '+f.pricePerL.toFixed(3)+' CHF/L'),
-                    React.createElement('div',{className:'fill-meta'},f.km+' km parcourus'+(f.note?' · '+f.note:'')),
+                    React.createElement('div',{className:'fill-meta'},(Number.isInteger(f.km)?f.km:+f.km.toFixed(1))+' km parcourus'+(f.note?' · '+f.note:'')),
                     React.createElement('div',{className:'actions-row'},
                       React.createElement('button',{className:'btn-edit',onClick:()=>setEditFill(f)},'✏️ Modifier'),
                       React.createElement('button',{className:'btn-danger',onClick:()=>setConfirm({msg:'Supprimer ce plein ?',cb:()=>setData(d=>({...d,fills:d.fills.filter(x=>x.id!==f.id)}))})}, '🗑 Supprimer')
@@ -2947,7 +2997,7 @@ function App(){
     React.createElement('div',{className:'tab-bar'},
       React.createElement('div',{className:'tab-bar-inner'},navItems.map(n=>React.createElement('button',{key:n.id,className:`tab-btn ${tab===n.id?'active':''}`,onClick:()=>changeTab(n.id)},React.createElement('span',{className:'tab-icon'},n.icon),n.label)))
     ),
-    (showAdd||editFill)&&React.createElement(FillModal,{vehicleId:activeV,existing:editFill,onClose:()=>{setShowAdd(false);setEditFill(null);},onSave:saveFill,allFills:vFills}),
+    (showAdd||editFill)&&React.createElement(FillModal,{vehicleId:activeV,existing:editFill,onClose:()=>{setShowAdd(false);setEditFill(null);},onSave:saveFill,allFills:vFills,vehicle}),
     (showAddPart||editPart)&&React.createElement(PartModal,{vehicleId:activeV,existing:editPart,onClose:()=>{setShowAddPart(false);setEditPart(null);},onSave:savePart,vehicle:data.vehicles.find(v=>v.id===activeV)}),
     (showAddService||editService)&&React.createElement(ServiceModal,{vehicleId:activeV,existing:editService,onClose:()=>{setShowAddService(false);setEditService(null);},onSave:saveService,vehicle:data.vehicles.find(v=>v.id===activeV)}),
     showVehicleEdit&&React.createElement(VehicleModal,{existing:showVehicleEdit.vehicle,onClose:()=>setShowVehicleEdit(null),onSave:saveVehicle}),
